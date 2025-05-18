@@ -31,7 +31,7 @@ from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 150_000
+TRAINING_TIMESTEPS = 200_000
 
 MODEL_NAME = "simple_nav"
 
@@ -43,38 +43,24 @@ LOG_DIR = os.path.join(MODEL_DIR, "logs") # /training/<model_name>/logs/
 NUM_ENVS = 4
 vec_env = make_vec_env(create_env, n_envs=NUM_ENVS, vec_env_cls=DummyVecEnv) # Create the vectorized environment
 
-model = PPO(
-    "MultiInputPolicy",
-    env=vec_env,
-    n_steps=4096,
-    batch_size=64,
-    n_epochs=10,
-    gamma=0.99,
-    learning_rate=3e-3,
-    clip_range=0.18,
-    gae_lambda=0.95,
-    ent_coef=0.06,
-    vf_coef=0.5,
-    max_grad_norm=0.5,
-    verbose=1,
-    tensorboard_log=LOG_DIR,
-)
+model = PPO("MultiInputPolicy", env=vec_env, verbose=1, tensorboard_log=LOG_DIR)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
 start_time = time.time() # Start the timer
 
-model.learn(total_timesteps=TRAINING_TIMESTEPS,
-            callback=HybridCallback(
-                n_eval_episodes=3,
-                eval_freq=10_000,
-                save_freq=10_000,
-                save_path=MODEL_DIR,
-                log_path=LOG_DIR,
-                render=False
-            ),
-            progress_bar=True
-) 
+model.learn(
+    total_timesteps=TRAINING_TIMESTEPS,
+    progress_bar=True,
+    callback=HybridCallback(
+        n_eval_episodes=3,
+        eval_freq=10_000,
+        save_freq=10_000,
+        save_path=MODEL_DIR,
+        log_path=LOG_DIR,
+        render=False
+    )
+)
 
 end_time = time.time() # End the timer
 

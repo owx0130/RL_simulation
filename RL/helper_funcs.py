@@ -86,6 +86,7 @@ def heading_to_goal(agent_longlat, goal_longlat):
     x2 = longlat_to_xy(goal_longlat)[0]
     y2 = longlat_to_xy(goal_longlat)[1]
     math_angle = mt.degrees(mt.atan2(y2 - y1, x2 - x1))
+
     # Convert to navigational heading
     compass_heading = math_angle_to_compass(math_angle)
     return compass_heading

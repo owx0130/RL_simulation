@@ -93,7 +93,7 @@ class Agent():
         
         math_ang_rad = np.deg2rad(compass_to_math_angle(self.heading))
         self.xy += np.array([np.cos(math_ang_rad), np.sin(math_ang_rad)]) * self.velocity * time_step
-
+        
         self.velocity += acceleration * time_step
         self.heading += yaw_rate * time_step
         self.heading %= 360
@@ -188,6 +188,7 @@ class MyEnv(gym.Env):
         self.goal_pos_xy_rel = np.array([0,0])  # goal pos is set as the origin
         self.agent_start_pos_xy = np.array(longlat_to_xy(agent_start_pos_longlat))
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy  # relative position to goal pos
+        self.agent_initial_dist_to_goal = np.linalg.norm(self.agent_start_pos_xy_rel)
         self.agent_angle_to_goal = 0
         self.agent_dist_to_goal = 0
         self.initial_heading_degs = heading_deg
@@ -278,7 +279,187 @@ class MyEnv(gym.Env):
         self.obs_to_tracker_id_dict = {}
         for i in range(1, self.max_obstacles+1):
             self.obs_to_tracker_id_dict[i] = -1
+    
+    def get_action_space(self):
+        "Returns initialized action space."
         
+        return spaces.Box(low=np.array([0, -1]), high=np.array([1, 1]), dtype=np.float32)
+
+    def get_observation_space(self):
+        "Returns initialized observation space"
+
+        # Initialize the observation space dictionary
+        observation_space_dict = {
+            "agent": spaces.Box(
+                low=np.array([0, -1, 0, 0]),  # dist_to_goal_norm, angle_diff_to_goal_norm, velocity_norm, heading_norm
+                high=np.array([1, 1, 1, 1]),
+                dtype=np.float64,
+            )
+        }
+
+        # Loop to add obstacle spaces
+        for i in range(1, self.max_obstacles+1):
+            # obs1_active
+            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
+            # obs1_type
+            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
+            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
+            # obs1
+            observation_space_dict[f"obs{i}"] = spaces.Box(
+                low=np.array([0, -1, 0, 0, 0]),
+                high=np.array(
+                    [1, 1, 1, 1, max(self.safety_radius_dict.values())]
+                ),
+                dtype=np.float64,
+            )  # long, lat, velocity, heading, safety radius
+
+        return spaces.Dict(observation_space_dict)
+
+    def get_signed_angle_diff(self, pt1, heading, pt2):
+        """Returns signed angle difference from agent to goal.
+        
+           CW => -ve
+           ACW => +ve
+        """
+        try:
+            goal_heading = heading_to_goal(xy_to_longlat(pt1), xy_to_longlat(pt2))
+        except ValueError:
+            print(f"pt1: {pt1}, pt2: {pt2}, heading: {heading}")
+            exit()
+            
+        angle_diff = (goal_heading - heading + 180) % 360 - 180
+        return angle_diff
+
+    def get_operational_environment(self):
+        "Returns midpoint, ops_bubble_radius of operational environment"
+        # midpoint coordinates
+        midpoint = (self.agent_start_pos_xy + self.goal_pos_xy) / 2
+
+        # distance in metres between agent and goal
+        distance = np.linalg.norm(self.agent_start_pos_xy_rel)
+        
+        # operational radius for training where the agent cannot exceed
+        ops_bubble_radius = distance * self.ops_bubble_multiplier
+        
+        # Edges of the map
+        min_xy = midpoint - ops_bubble_radius
+        max_xy = midpoint + ops_bubble_radius
+        
+        max_x_dist = max(max_xy[0] - self.goal_pos_xy[0], 
+                        self.goal_pos_xy[0] - min_xy[0])
+        max_y_dist = max(max_xy[1] - self.goal_pos_xy[1], 
+                              self.goal_pos_xy[1] - min_xy[1])
+        
+        max_ops_distance = np.array([max_x_dist, max_y_dist])
+        
+        return midpoint, ops_bubble_radius, min_xy, max_xy, max_ops_distance
+
+    def check_in_operational_environment(self, pos_xy:np.ndarray):
+        "Checks if a pos_xy point is in the operational environment"
+        # distance of point from centre of ops environment
+        dist_to_centre = np.linalg.norm(pos_xy - self.ops_COG)
+        
+        if dist_to_centre < self.ops_bubble_radius: 
+            return True
+        else: 
+            return False
+
+    def log_rewards(self, reward, reward_name):
+        """Logs each reward/penalty to the rewards_log dict for display in logs table and
+        analysis purposes. (Not an essential function)"""
+        
+        if reward_name == "total_reward": 
+            if reward_name not in self.rewards_log: self.rewards_log[reward_name] = 0 # Initialise total_reward element
+            self.rewards_log[reward_name] += reward
+        else:
+            self.rewards_log[reward_name] = reward 
+        return
+    
+    def get_reward(self, normalized_acc, normalized_yaw_rate, in_ops_env, goal_reached):
+        "Calculates the total reward"
+        
+        ### DAVID's EDIT START ###
+
+        self.prev_rewards_log = copy.deepcopy(self.rewards_log)
+
+        # Reward moving towards the goal
+        prev_distance = np.linalg.norm(self.prev_agent.xy-self.goal_pos_xy)
+        normalized_change_in_distance_to_goal = (prev_distance - self.agent_dist_to_goal) / self.agent_initial_dist_to_goal #(self.max_velocity_ms * self.time_step)
+        distance_change_reward = normalized_change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
+        self.log_rewards(distance_change_reward, "distance_change_reward")
+ 
+        # # Reward turning towards the goal
+        # normalized_change_in_angle_diff = ((abs(self.get_signed_angle_diff(self.prev_agent.xy, self.prev_agent.heading, self.goal_pos_xy))
+        #                                     - abs(self.agent_angle_to_goal)) 
+        #                                     / (self.max_yaw_rate_degs*self.time_step))   
+        # angle_change_reward = normalized_change_in_angle_diff * self.reward_weights_dict['angle_change_reward_weightage']
+        # self.log_rewards(angle_change_reward, "angle_change_reward")    
+        
+        # # Time penalty (want agent to be efficient)
+        # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
+        # self.log_rewards(time_penalty, "time_penalty")    
+
+        # # Penalize change in speed (acceleration)
+        # normalized_acc = abs(normalized_acc)    
+        # acc_penalty = normalized_acc * self.reward_weights_dict["acceleration_penalty_weightage"]
+        # self.log_rewards(acc_penalty, "acc_penalty")   
+ 
+        # # Penalize change in direction
+        # direction_penalty = (abs(normalized_yaw_rate) * self.reward_weights_dict["change_in_direction_penalty_weightage"])
+        # self.log_rewards(direction_penalty, "direction_penalty")   
+
+        # # Penalize exceeding operations environment
+        # exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
+        # self.log_rewards(exceed_ops_env_penalty, "exceed_ops_env_penalty") 
+        
+        # Penalties to do with obstacles
+        collision_penalty = sr_breach_penalty = 0
+        # for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
+            
+        #     if obs.active == 1: # If obstacle active
+        #         obs_dist_to_agent = np.linalg.norm(obs.xy-self.agent.xy)
+        #         safety_radius = obs.safety_radius
+        #         if obs_dist_to_agent <= 0.2*safety_radius:
+        #             if self.collision_flags[i-1] == False: 
+        #                 collision_penalty += self.reward_weights_dict["obs_collision_penalty_weightage"]
+        #                 self.collision_flags[i-1] = True
+        #         else: 
+        #             self.collision_flags[i-1] = False
+        #         if obs_dist_to_agent <= safety_radius:
+        #             sr_breach_penalty += self.power_reward_func(
+        #                 (1, 0), 
+        #                 (0.2, self.reward_weights_dict["obs_SR_breach_penalty_weightage"]), 
+        #                 max(obs_dist_to_agent/safety_radius, 0.2),
+        #                 'down', 
+        #                 1
+        #             )
+        self.log_rewards(collision_penalty, "collision_penalty") 
+        # self.log_rewards(sr_breach_penalty, "sr_breach_penalty") 
+
+        # Reward for reaching goal
+        goal_reward = self.reward_weights_dict["goal_reward_weightage"] if goal_reached else 0
+        self.log_rewards(goal_reward, "goal_reward")
+
+        # Penalty for breaching COLREGs
+        # colregs_penalty = self.get_colregs_penalty()
+
+        # Final reward
+        total_reward = (
+            + distance_change_reward
+            # + angle_change_reward
+            # + time_penalty
+            # + acc_penalty
+            # + direction_penalty
+            # + exceed_ops_env_penalty
+            # + collision_penalty
+            # + sr_breach_penalty
+            + goal_reward
+        )
+
+        self.log_rewards(total_reward, "total_reward")
+
+        return total_reward
+
     def reset(self, seed=None, options=None):
 
         start_pos_xy = self.agent_start_pos_xy
@@ -299,7 +480,7 @@ class MyEnv(gym.Env):
         
         # Initialise agent state
         self.agent_dist_to_goal = np.linalg.norm(self.agent.xy - self.goal_pos_xy)
-        self.agent_angle_to_goal = self.get_signed_angle_diff(pt1=self.agent.xy, heading=self.agent.heading, pt2=self.goal_pos_xy)
+        self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
         
         self.state = {
             'agent': np.array([
@@ -327,7 +508,7 @@ class MyEnv(gym.Env):
         return self.state, {}
     
     def step(self, action):
-        
+
         normalized_acc, normalized_yaw_rate = action
         self.acc_ms2 = normalized_acc * self.max_acc_ms2
         self.yaw_rate_degs = normalized_yaw_rate * self.max_yaw_rate_degs
@@ -337,15 +518,13 @@ class MyEnv(gym.Env):
         self.agent.update(self.acc_ms2, self.yaw_rate_degs, self.time_step)
         self.agent_dist_to_goal = np.linalg.norm(self.agent.xy - self.goal_pos_xy)
         self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
-
+        
         self.state['agent'] = np.array([
             self.agent_dist_to_goal / self.max_dist_in_boundary,
             self.agent_angle_to_goal / 180.0,
             self.agent.velocity / self.max_velocity_ms,
             self.agent.heading / 360.0])
         
-        print(self.state['agent'][0])
-
         # Check if agent still in ops env
         in_ops_env = self.check_in_operational_environment(self.agent.xy)
 
@@ -388,26 +567,11 @@ class MyEnv(gym.Env):
         # Check if the episode is done
         terminated = goal_reached or not in_ops_env
         truncated = bool(self.elapsed_time >= self.end_time)  # Truncate if elapsed time exceeds end_time
-            
+        
         info = {}
         info["episode"] = {"l": self.elapsed_time, "r": self.rewards_log["total_reward"]}
 
         return self.state, reward, terminated, truncated, info
-
-    def get_signed_angle_diff(self, pt1, heading, pt2):
-        """Returns signed angle difference to goal.
-        
-           CW => -ve
-           ACW => +ve
-        """
-        try:
-            goal_heading = heading_to_goal(xy_to_longlat(pt1), xy_to_longlat(pt2))
-        except ValueError:
-            print(f"pt1: {pt1}, pt2: {pt2}, heading: {heading}")
-            exit()
-        
-        angle_diff = (goal_heading - heading + 180) % 360 - 180
-        return angle_diff
 
     def external_update(self, sensor_data, processed_obs_list, new_goal_pos_longlat):
         """Update the environment observation space externally with boat and 
@@ -517,139 +681,67 @@ class MyEnv(gym.Env):
         # Set end time for truncation
         self.end_time = (
             4 * self.ops_bubble_radius / self.cruising_speed_ms 
-        ) # seconds 
+        ) # seconds
 
-    def get_operational_environment(self):
-        "Returns midpoint, ops_bubble_radius of operational environment"
-        # midpoint coordinates
-        midpoint = (self.agent_start_pos_xy + self.goal_pos_xy) / 2
-
-        # distance in metres between agent and goal
-        distance = np.linalg.norm(self.agent_start_pos_xy_rel)
+    # def get_next_state_and_update_agent(self, acc_ms2, yaw_rate_degs):
+    #     "Returns self.state['agent'] after taking action"
         
-        # operational radius for training where the agent cannot exceed
-        ops_bubble_radius = distance * self.ops_bubble_multiplier
+    #     ### DAVID's EDIT START
         
-        # Edges of the map
-        min_xy = midpoint - ops_bubble_radius
-        max_xy = midpoint + ops_bubble_radius
+    #     # Get next position
+    #     self.agent.xy += (self.agent.velocity * self.time_step * 
+    #         np.array(
+    #             [np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))), 
+    #              np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))]
+    #             )
+    #         )
+
+    #     # Get next velocity
+    #     self.agent.velocity += acc_ms2 * self.time_step
+    #     self.agent.velocity = np.clip(self.agent.velocity, 0, self.max_velocity_ms) 
         
-        max_x_dist = max(max_xy[0] - self.goal_pos_xy[0], 
-                        self.goal_pos_xy[0] - min_xy[0])
-        max_y_dist = max(max_xy[1] - self.goal_pos_xy[1], 
-                              self.goal_pos_xy[1] - min_xy[1])
-                
-        max_ops_distance = np.array([max_x_dist, max_y_dist])
-        
-        return midpoint, ops_bubble_radius, min_xy, max_xy, max_ops_distance
-
-    def check_in_operational_environment(self, pos_xy:np.ndarray):
-        "Checks if a pos_xy point is in the operational environment"
-        # distance of point from centre of ops environment
-        dist_to_centre = np.linalg.norm(pos_xy - self.ops_COG)
-        
-        if dist_to_centre < self.ops_bubble_radius: 
-            return True
-        else: 
-            return False
-
-    def get_action_space(self):
-        "Returns initialized action space."
-        
-        return spaces.Box(
-            low=np.array([0, -1]), high=np.array([1, 1]), dtype=np.float32
-        )
-
-    def get_observation_space(self):
-        "Returns initialized observation space"
-
-        # Initialize the observation space dictionary
-        observation_space_dict = {
-            "agent": spaces.Box(
-                low=np.array([0, -1, 0, 0]),  # dist_to_goal_norm, angle_diff_to_goal_norm, velocity_norm, heading_norm
-                high=np.array([1, 1, 1, 1]),
-                dtype=np.float64,
-            )
-        }
-
-        # Loop to add obstacle spaces
-        for i in range(1, self.max_obstacles+1):
-            # obs1_active
-            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
-            # obs1_type
-            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
-            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
-            # obs1
-            observation_space_dict[f"obs{i}"] = spaces.Box(
-                low=np.array([0, -1, 0, 0, 0]),
-                high=np.array(
-                    [1, 1, 1, 1, max(self.safety_radius_dict.values())]
-                ),
-                dtype=np.float64,
-            )  # long, lat, velocity, heading, safety radius
-
-        # Assign the observation space
-        return spaces.Dict(observation_space_dict)
-
-    def get_next_state_and_update_agent(self, acc_ms2, yaw_rate_degs):
-        "Returns self.state['agent'] after taking action"
-        
-        ### DAVID's EDIT START
-        
-        # Get next position
-        self.agent.xy += (self.agent.velocity * self.time_step * 
-            np.array(
-                [np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))), 
-                 np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))]
-                )
-            )
-
-        # Get next velocity
-        self.agent.velocity += acc_ms2 * self.time_step
-        self.agent.velocity = np.clip(self.agent.velocity, 0, self.max_velocity_ms) 
-        
-        # Simulate drag to agent's linear motion *(not accurate representation of actual drag)
-        if acc_ms2 == 0 and self.agent.velocity > 0:
-            drag_coefficient = 0.1
-            wetted_area = 2 * 0.8 # metre ^2
-            water_density = 1000 # kg/m^3
-            mass = 40 # kg
+    #     # Simulate drag to agent's linear motion *(not accurate representation of actual drag)
+    #     if acc_ms2 == 0 and self.agent.velocity > 0:
+    #         drag_coefficient = 0.1
+    #         wetted_area = 2 * 0.8 # metre ^2
+    #         water_density = 1000 # kg/m^3
+    #         mass = 40 # kg
             
-            drag_force = 0.5 * water_density * drag_coefficient * wetted_area * self.agent.velocity**2
-            deceleration = drag_force / mass
+    #         drag_force = 0.5 * water_density * drag_coefficient * wetted_area * self.agent.velocity**2
+    #         deceleration = drag_force / mass
             
-            self.agent.velocity = max(self.agent.velocity - deceleration * self.time_step, 0)
-            if self.agent.velocity <= 0.1: self.agent.velocity = 0
+    #         self.agent.velocity = max(self.agent.velocity - deceleration * self.time_step, 0)
+    #         if self.agent.velocity <= 0.1: self.agent.velocity = 0
             
-        self.agent.heading += self.time_step * yaw_rate_degs
-        self.agent.heading = self.agent.heading % 360  # Ensure heading is within the range [0, 360]
+    #     self.agent.heading += self.time_step * yaw_rate_degs
+    #     self.agent.heading = self.agent.heading % 360  # Ensure heading is within the range [0, 360]
         
-        # Normalise agent state
-        distance_to_goal_norm = self.agent.get_dist_to_goal(self.goal_pos_xy) / self.max_ops_dist_scalar
-        angle_to_goal_norm = self.agent.get_angle_diff_to_goal(self.goal_pos_xy) / 180.0
-        velocity_norm = self.agent.velocity/self.max_velocity_ms
-        heading_norm = self.agent.heading/360.0
+    #     # Normalise agent state
+    #     distance_to_goal_norm = self.agent.get_dist_to_goal(self.goal_pos_xy) / self.max_ops_dist_scalar
+    #     angle_to_goal_norm = self.agent.get_angle_diff_to_goal(self.goal_pos_xy) / 180.0
+    #     velocity_norm = self.agent.velocity/self.max_velocity_ms
+    #     heading_norm = self.agent.heading/360.0
 
-        return np.array(
-            [distance_to_goal_norm, 
-             angle_to_goal_norm, 
-             velocity_norm, 
-             heading_norm,
-             ], dtype=np.float64
-        )
-        ### DAVID's EDIT END
+    #     return np.array(
+    #         [distance_to_goal_norm, 
+    #          angle_to_goal_norm, 
+    #          velocity_norm, 
+    #          heading_norm,
+    #          ], dtype=np.float64
+    #     )
+    #     ### DAVID's EDIT END
 
-    def get_angle_to_goal(self, agent_xy, goal_pos_xy, agent_heading):
-        """Get the angle difference between the agent's heading and the goal position"""
+    # def get_angle_to_goal(self, agent_xy, goal_pos_xy, agent_heading):
+    #     """Get the angle difference between the agent's heading and the goal position"""
         
-        # Get heading of goal relative to North from agent 
-        goal_heading = heading_to_goal(xy_to_longlat(agent_xy), 
-                                       xy_to_longlat(goal_pos_xy)) 
-        angle_diff = (goal_heading - agent_heading) % 360 # Restrict angles to [0, 360]
-        angle_diff = min(angle_diff, 360 - angle_diff) # Calculate the smallest angle difference between agent and goal heading
+    #     # Get heading of goal relative to North from agent 
+    #     goal_heading = heading_to_goal(xy_to_longlat(agent_xy), 
+    #                                    xy_to_longlat(goal_pos_xy)) 
+    #     angle_diff = (goal_heading - agent_heading) % 360 # Restrict angles to [0, 360]
+    #     angle_diff = min(angle_diff, 360 - angle_diff) # Calculate the smallest angle difference between agent and goal heading
 
-        return angle_diff
-                
+    #     return angle_diff
+    
     def generate_obstacle(self):
         """Generate an obstacle and return the obstacle's Obstacle object"""
             
@@ -814,133 +906,37 @@ class MyEnv(gym.Env):
         else:
             obs_type = 0 # unclassified
         return obs_type
-
-    def log_rewards(self, reward, reward_name):
-        """Logs each reward/penalty to the rewards_log dict for display in logs table and
-        analysis purposes. (Not an essential function)"""
-        
-        if reward_name == "total_reward": 
-            if reward_name not in self.rewards_log: self.rewards_log[reward_name] = 0 # Initialise total_reward element
-            self.rewards_log[reward_name] += reward
-        else:
-            self.rewards_log[reward_name] = reward 
-        return 
     
-    def get_reward(self, normalized_acc, normalized_yaw_rate, in_ops_env, goal_reached):
-        "Calculates the total reward"
+    # @staticmethod
+    # def power_reward_func(pt1, pt2, cal_pt, concavity, power):
+    #     if not (min(pt1[0], pt2[0]) <= cal_pt <= max(pt1[0], pt2[0])):
+    #         raise ValueError("cal_pt must be between x1 and x2")
         
-        ### DAVID's EDIT START ###
+    #     if pt2[1] > pt1[1]: 
+    #         big_pt = pt2
+    #         small_pt = pt1
+    #     else: 
+    #         big_pt = pt1
+    #         small_pt = pt2
 
-        self.prev_rewards_log = copy.deepcopy(self.rewards_log)
+    #     if concavity == 'down':
+    #         ref_pt = big_pt
+    #         final_pt = small_pt
+    #     elif concavity == 'up':
+    #         ref_pt = small_pt
+    #         final_pt = big_pt
+    #     else:
+    #         raise TypeError('concavity is either up or down')
 
-        # Reward moving towards the goal
-        normalized_change_in_distance_to_goal = ((np.linalg.norm(self.prev_agent.xy-self.goal_pos_xy)
-                                                  -self.agent_dist_to_goal) 
-                                                 / (self.max_velocity_ms * self.time_step))
-        distance_change_reward = normalized_change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
-        self.log_rewards(distance_change_reward, "distance_change_reward")
- 
-        # # Reward turning towards the goal
-        # normalized_change_in_angle_diff = ((abs(self.get_signed_angle_diff(self.prev_agent.xy, self.prev_agent.heading, self.goal_pos_xy))
-        #                                     - abs(self.agent_angle_to_goal)) 
-        #                                     / (self.max_yaw_rate_degs*self.time_step))   
-        # angle_change_reward = normalized_change_in_angle_diff * self.reward_weights_dict['angle_change_reward_weightage']
-        # self.log_rewards(angle_change_reward, "angle_change_reward")    
-        
-        # # Time penalty (want agent to be efficient)
-        # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
-        # self.log_rewards(time_penalty, "time_penalty")    
+    #     x_2 = final_pt[0] - ref_pt[0]
+    #     x = cal_pt - ref_pt[0]
+    #     a_2 = final_pt[1] - ref_pt[1]
 
-        # # Penalize change in speed (acceleration)
-        # normalized_acc = abs(normalized_acc)    
-        # acc_penalty = normalized_acc * self.reward_weights_dict["acceleration_penalty_weightage"]
-        # self.log_rewards(acc_penalty, "acc_penalty")   
- 
-        # # Penalize change in direction
-        # direction_penalty = (abs(normalized_yaw_rate) * self.reward_weights_dict["change_in_direction_penalty_weightage"])
-        # self.log_rewards(direction_penalty, "direction_penalty")   
-
-        # # Penalize exceeding operations environment
-        # exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
-        # self.log_rewards(exceed_ops_env_penalty, "exceed_ops_env_penalty") 
-        
-        # Penalties to do with obstacles
-        collision_penalty = sr_breach_penalty = 0
-        for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
-            
-            if obs.active == 1: # If obstacle active
-                obs_dist_to_agent = np.linalg.norm(obs.xy-self.agent.xy)
-                safety_radius = obs.safety_radius
-                if obs_dist_to_agent <= 0.2*safety_radius:
-                    if self.collision_flags[i-1] == False: 
-                        collision_penalty += self.reward_weights_dict["obs_collision_penalty_weightage"]
-                        self.collision_flags[i-1] = True
-                else: 
-                    self.collision_flags[i-1] = False
-                if obs_dist_to_agent <= safety_radius:
-                    sr_breach_penalty += self.power_reward_func(
-                        (1, 0), 
-                        (0.2, self.reward_weights_dict["obs_SR_breach_penalty_weightage"]), 
-                        max(obs_dist_to_agent/safety_radius, 0.2),
-                        'down', 
-                        1
-                    )   
-        self.log_rewards(collision_penalty, "collision_penalty") 
-        self.log_rewards(sr_breach_penalty, "sr_breach_penalty") 
-
-        # Reward for reaching goal
-        goal_reward = self.reward_weights_dict["goal_reward_weightage"] if goal_reached else 0
-        self.log_rewards(goal_reward, "goal_reward")
-
-        # Penalty for breaching COLREGs
-        # colregs_penalty = self.get_colregs_penalty()
-
-        # Final reward
-        total_reward = (
-            + distance_change_reward
-            # + angle_change_reward
-            # + time_penalty
-            # + acc_penalty
-            # + direction_penalty
-            # + exceed_ops_env_penalty
-             + collision_penalty
-            # + sr_breach_penalty
-            + goal_reward
-        )
-        self.log_rewards(total_reward, "total_reward")
-
-        return total_reward
-    
-    @staticmethod
-    def power_reward_func(pt1, pt2, cal_pt, concavity, power):
-        if not (min(pt1[0], pt2[0]) <= cal_pt <= max(pt1[0], pt2[0])):
-            raise ValueError("cal_pt must be between x1 and x2")
-        
-        if pt2[1] > pt1[1]: 
-            big_pt = pt2
-            small_pt = pt1
-        else: 
-            big_pt = pt1
-            small_pt = pt2
-
-        if concavity == 'down':
-            ref_pt = big_pt
-            final_pt = small_pt
-        elif concavity == 'up':
-            ref_pt = small_pt
-            final_pt = big_pt
-        else:
-            raise TypeError('concavity is either up or down')
-
-        x_2 = final_pt[0] - ref_pt[0]
-        x = cal_pt - ref_pt[0]
-        a_2 = final_pt[1] - ref_pt[1]
-
-        if type(power) is int and power >= 1:
-            reward = a_2 * (x/x_2)**power + ref_pt[1]
-        else:
-            raise TypeError('power must be an integer greater than 1')
-        return reward
+    #     if type(power) is int and power >= 1:
+    #         reward = a_2 * (x/x_2)**power + ref_pt[1]
+    #     else:
+    #         raise TypeError('power must be an integer greater than 1')
+    #     return reward
     
     def closest_distance_with_agent(self, obstacle: Obstacle):
         """Returns the closest projected distance between the 

@@ -48,11 +48,11 @@ distance_penalty_weightage = 0
 distance_change_reward_weightage = 1
 angle_diff_penalty_weightage = 0
 angle_change_reward_weightage = 1
-time_penalty_weightage = -1 
+time_penalty_weightage = -1
 acceleration_penalty_weightage = 0 
 change_in_direction_penalty_weightage = 0 
 exceed_ops_env_penalty_weightage = -3000
-goal_reward_weightage = 5000
+goal_reward_weightage = 100
 obs_collision_penalty_weightage = -100
 obs_SR_breach_penalty_weightage = 0 # -50
 
