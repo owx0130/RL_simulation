@@ -197,7 +197,7 @@ class MyEnv(gym.Env):
         # Operation Environment for simulation
         self.ops_bubble_multiplier = ops_bubble_multiplier
         self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
-        self.max_dist_in_boundary = 2 * self.ops_bubble_radius * sqrt(2) # length of diagonal of square boundary
+        self.max_dist_in_boundary = 2 * self.ops_bubble_radius # diameter of circular boundary
         self.decision_rate = decision_rate
         self.safety_radius_dict = safety_radius_dict 
         self.reward_weights_dict = rewards_weights_dict 
@@ -280,6 +280,9 @@ class MyEnv(gym.Env):
         for i in range(1, self.max_obstacles+1):
             self.obs_to_tracker_id_dict[i] = -1
     
+    def generate_random_coords(self):
+        return np.random.uniform(high=500, size=2)
+
     def get_action_space(self):
         "Returns initialized action space."
         
@@ -332,14 +335,12 @@ class MyEnv(gym.Env):
 
     def get_operational_environment(self):
         "Returns midpoint, ops_bubble_radius of operational environment"
+
         # midpoint coordinates
         midpoint = (self.agent_start_pos_xy + self.goal_pos_xy) / 2
-
-        # distance in metres between agent and goal
-        distance = np.linalg.norm(self.agent_start_pos_xy_rel)
         
         # operational radius for training where the agent cannot exceed
-        ops_bubble_radius = distance * self.ops_bubble_multiplier
+        ops_bubble_radius = self.agent_initial_dist_to_goal * self.ops_bubble_multiplier
         
         # Edges of the map
         min_xy = midpoint - ops_bubble_radius
@@ -385,6 +386,7 @@ class MyEnv(gym.Env):
         # Reward moving towards the goal
         prev_distance = np.linalg.norm(self.prev_agent.xy - self.goal_pos_xy)
         change_in_distance_to_goal = prev_distance - self.agent_dist_to_goal
+        change_in_distance_to_goal = max(change_in_distance_to_goal, 0)
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
@@ -399,9 +401,9 @@ class MyEnv(gym.Env):
         # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
         # self.log_rewards(time_penalty, "time_penalty")
 
-        # # Penalize exceeding operations environment
-        # exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
-        # self.log_rewards(exceed_ops_env_penalty, "exceed_ops_env_penalty") 
+        # Penalize exceeding operations environment
+        exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
+        self.log_rewards(exceed_ops_env_penalty, "exceed_ops_env_penalty") 
         
         # Penalties to do with obstacles
         collision_penalty = sr_breach_penalty = 0
@@ -441,7 +443,7 @@ class MyEnv(gym.Env):
             # + time_penalty
             # + acc_penalty
             # + direction_penalty
-            # + exceed_ops_env_penalty
+            + exceed_ops_env_penalty
             # + collision_penalty
             # + sr_breach_penalty
             + goal_reward
@@ -452,19 +454,10 @@ class MyEnv(gym.Env):
         return total_reward
 
     def reset(self, seed=None, options=None):
-
-        start_pos_xy = self.agent_start_pos_xy
-        # if self.random_start_pos:
-        #     radius = np.linalg.norm(self.agent_start_pos_xy-self.goal_pos_xy) * 0.2
-        #     possible_positions = []
-        #     for ang in range(0, 360, 30):
-        #         possible_positions.append(self.agent_start_pos_xy + radius * np.array([np.cos(np.deg2rad(ang)),
-        #                                                                                 np.sin(np.deg2rad(ang))]))
-        #     start_pos_xy = possible_positions[np.random.choice(len(possible_positions))]
         
         # Initialise agent object
         self.agent = Agent(
-            start_pos_xy,
+            self.agent_start_pos_xy,
             self.initial_heading_degs,
             self.cruising_speed_ms,
             self.max_velocity_ms)

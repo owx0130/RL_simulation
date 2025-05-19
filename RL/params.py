@@ -44,11 +44,11 @@ simulation_status = True
 random_agent_start_pos = True # yet to be implemented properly (lack of time)
 
 # Penalty weightages
-distance_change_reward_weightage = 1
+distance_change_reward_weightage = 2
 angle_change_reward_weightage = 1
 time_penalty_weightage = -1
-exceed_ops_env_penalty_weightage = -3000
-goal_reward_weightage = 100
+exceed_ops_env_penalty_weightage = -500
+goal_reward_weightage = 500
 obs_collision_penalty_weightage = -100
 
 # COLREGs (Not Yet Used)

@@ -31,7 +31,7 @@ from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 200_000
+TRAINING_TIMESTEPS = 150_000
 
 MODEL_NAME = "simple_nav"
 
@@ -54,8 +54,8 @@ model.learn(
     progress_bar=True,
     callback=HybridCallback(
         n_eval_episodes=3,
-        eval_freq=10_000,
-        save_freq=10_000,
+        eval_freq=16384,
+        save_freq=16384,
         save_path=MODEL_DIR,
         log_path=LOG_DIR,
         render=False

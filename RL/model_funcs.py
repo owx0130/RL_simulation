@@ -75,7 +75,6 @@ def custom_evaluate_model(
     n_eval_episodes: int = 1,
     deterministic: bool = True,
     render: bool = False,
-    #eval_env_type/eval_obs_type,
 ):
     """
     Evaluates model performance.
