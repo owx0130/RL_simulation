@@ -51,7 +51,7 @@ env = MyEnv(
     )
 
 # Load the trained model
-model = PPO.load(r"RL_training\simple_nav_10obs\models\best.zip")
+model = PPO.load(r"RL_training\simple_nav\models\best.zip")
 
 # Reset the environment and get the initial observation
 obs, _ = env.reset()

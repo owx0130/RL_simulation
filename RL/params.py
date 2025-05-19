@@ -31,7 +31,7 @@ colours_dict = {
 
 # Environment
 agent_start_pos_longlat = (103.859400,1.4221174)
-goal_pos_longlat = (103.86100,1.4221174) 
+goal_pos_longlat = (103.86100,1.4211174) 
 heading = 90.0  # 90 degrees = east
 decision_rate = 30  # Hz
 ops_bubble_multiplier = 0.75
@@ -44,17 +44,12 @@ simulation_status = True
 random_agent_start_pos = True # yet to be implemented properly (lack of time)
 
 # Penalty weightages
-distance_penalty_weightage = 0
 distance_change_reward_weightage = 1
-angle_diff_penalty_weightage = 0
 angle_change_reward_weightage = 1
 time_penalty_weightage = -1
-acceleration_penalty_weightage = 0 
-change_in_direction_penalty_weightage = 0 
 exceed_ops_env_penalty_weightage = -3000
 goal_reward_weightage = 100
 obs_collision_penalty_weightage = -100
-obs_SR_breach_penalty_weightage = 0 # -50
 
 # COLREGs (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard
@@ -64,17 +59,12 @@ obs_crossing_port_direction_change_penalty_weightage = -1  # continue on current
 obs_overtaking_penalty_weightage = -1  # do not cross in front of obstacle
 
 rewards_weights_dict = {
-    "distance_penalty_weightage": distance_penalty_weightage,
     "distance_change_reward_weightage": distance_change_reward_weightage,
-    "angle_diff_penalty_weightage": angle_diff_penalty_weightage,
     "angle_change_reward_weightage": angle_change_reward_weightage, 
     "time_penalty_weightage": time_penalty_weightage,
-    "acceleration_penalty_weightage": acceleration_penalty_weightage,
-    "change_in_direction_penalty_weightage": change_in_direction_penalty_weightage,
     "exceed_ops_env_penalty_weightage": exceed_ops_env_penalty_weightage,
     "goal_reward_weightage": goal_reward_weightage,
     "obs_collision_penalty_weightage": obs_collision_penalty_weightage,
-    "obs_SR_breach_penalty_weightage": obs_SR_breach_penalty_weightage,
     "obs_head_on_penalty_weightage": obs_head_on_penalty_weightage,
     "obs_crossing_starboard_penalty_weightage": obs_crossing_starboard_penalty_weightage,
     "obs_crossing_port_penalty_weightage": obs_crossing_port_penalty_weightage,

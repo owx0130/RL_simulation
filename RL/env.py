@@ -383,9 +383,9 @@ class MyEnv(gym.Env):
         self.prev_rewards_log = copy.deepcopy(self.rewards_log)
 
         # Reward moving towards the goal
-        prev_distance = np.linalg.norm(self.prev_agent.xy-self.goal_pos_xy)
-        normalized_change_in_distance_to_goal = (prev_distance - self.agent_dist_to_goal) / self.agent_initial_dist_to_goal #(self.max_velocity_ms * self.time_step)
-        distance_change_reward = normalized_change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
+        prev_distance = np.linalg.norm(self.prev_agent.xy - self.goal_pos_xy)
+        change_in_distance_to_goal = prev_distance - self.agent_dist_to_goal
+        distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
         # # Reward turning towards the goal
@@ -397,16 +397,7 @@ class MyEnv(gym.Env):
         
         # # Time penalty (want agent to be efficient)
         # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
-        # self.log_rewards(time_penalty, "time_penalty")    
-
-        # # Penalize change in speed (acceleration)
-        # normalized_acc = abs(normalized_acc)    
-        # acc_penalty = normalized_acc * self.reward_weights_dict["acceleration_penalty_weightage"]
-        # self.log_rewards(acc_penalty, "acc_penalty")   
- 
-        # # Penalize change in direction
-        # direction_penalty = (abs(normalized_yaw_rate) * self.reward_weights_dict["change_in_direction_penalty_weightage"])
-        # self.log_rewards(direction_penalty, "direction_penalty")   
+        # self.log_rewards(time_penalty, "time_penalty")
 
         # # Penalize exceeding operations environment
         # exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
