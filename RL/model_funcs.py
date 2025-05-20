@@ -1,41 +1,8 @@
-import os
-import shutil
 from stable_baselines3 import PPO
-
 from RL.params import *
 from RL.env import MyEnv
 
-def get_new_dir_if_exist_alr(dir: str) -> str:
-    renamed_dir = dir
-    counter = 1
-    while os.path.exists(renamed_dir):
-        renamed_dir = f"{dir}_{counter}"
-        counter += 1
-
-    return renamed_dir
-
-def clear_dir(dir: str) -> None:
-    '''
-    Deletes all files, folders, and symbolic links in a specified directory.
-
-    Parameters
-    ----------
-    dir: str
-        Path to the directory you want to clear.
-
-    '''
-    for item in os.listdir(dir):
-        item_path = os.path.join(dir, item)
-        if os.path.isfile(item_path) or os.path.islink(item_path):
-            os.unlink(item_path)
-        elif os.path.isdir(item_path):
-            shutil.rmtree(item_path)
-
-def create_env(
-    rec=False,
-    vid_name="Current",
-    sim_status=False,
-):
+def create_env(rec=False, vid_name="Current", sim_status=False):
     return MyEnv(
         agent_start_pos_longlat,
         goal_pos_longlat,
@@ -62,7 +29,6 @@ def create_env(
         
         obstacle_motion_type,
         max_spawned_obs=no_of_generated_obs,
-        random_goal_position_status=random_agent_start_pos,
         
         simulation_status=sim_status,
         record=rec,
@@ -102,10 +68,11 @@ def custom_evaluate_model(
             action, _states = model.predict(obs, deterministic=deterministic)
             obs, reward, terminated, truncated, _  = eval_env.step(action)
 
-            if render: eval_env.render()
+            if render:
+                eval_env.render()
 
-            ep_metrics["no_of_goals"] = (eval_env.rewards_log["goal_reward"] // eval_env.reward_weights_dict["goal_reward_weightage"])
-            ep_metrics["no_of_collisions"] = (eval_env.rewards_log["collision_penalty"] // eval_env.reward_weights_dict["obs_collision_penalty_weightage"])
+            ep_metrics["no_of_goals"] = eval_env.rewards_log["goal_reward"] // eval_env.reward_weights_dict["goal_reward_weightage"]
+            ep_metrics["no_of_collisions"] = eval_env.rewards_log["collision_penalty"] // eval_env.reward_weights_dict["obs_collision_penalty_weightage"]
             ep_metrics["reward"] += reward
             ep_metrics["timesteps"] += 1
             ep_metrics["no_of_truncations"] = 1 if truncated else 0

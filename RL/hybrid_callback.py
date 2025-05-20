@@ -1,5 +1,4 @@
 import os
-import csv
 import numpy as np
 
 from stable_baselines3.common.callbacks import BaseCallback
@@ -7,7 +6,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 from params import *
 from model_funcs import *
-from env import MyEnv
 
 class HybridCallback(BaseCallback):
 
@@ -15,14 +13,16 @@ class HybridCallback(BaseCallback):
     A custom callback function for SB3 PPO training.
     """
 
-    def __init__(self,
-                 n_eval_episodes: int,
-                 eval_freq: int,
-                 save_freq: int,
-                 save_path: str,
-                 log_path: str,
-                 render: bool = False,
-                 verbose: int = 0):
+    def __init__(
+        self,
+        n_eval_episodes: int,
+        eval_freq: int,
+        save_freq: int,
+        save_path: str,
+        log_path: str,
+        render: bool = False,
+        verbose: int = 0):
+        
         """
         Parameters
         ----------
@@ -43,16 +43,13 @@ class HybridCallback(BaseCallback):
         self.model_save_folder = os.path.join(save_path, "models")
         self.render = render
         self.verbose = verbose
-        
-        os.makedirs(self.model_save_folder, exist_ok=True)  # Creates the folder if it doesn't exist
-            
-        # Number of envs in the vectorised training env
-        # self.n_envs = self.training_env.num_envs 
-
-        self.best_mean_reward = -float('inf')
+        self.best_reward_per_timestep = -float('inf')
         self.writer = SummaryWriter(log_dir=log_path)
-
         self.eval_metrics = {}
+        self.eval_env = create_env()
+
+        os.makedirs(self.model_save_folder, exist_ok=True)  # Creates the folder if it doesn't exist
+
 
     def _on_step(self) -> bool:
         """
@@ -65,11 +62,10 @@ class HybridCallback(BaseCallback):
         * Saves the best model during training
         """
 
-        self.eval_env = create_env()
-
         # Evaluate model periodically
         if self.num_timesteps % self.eval_freq == 0:
             
+            self.eval_env.reset()
             self.eval_metrics = custom_evaluate_model(
                 eval_env=self.eval_env,
                 model=self.model,
@@ -79,7 +75,9 @@ class HybridCallback(BaseCallback):
             )
 
             # Save best model
-            if np.average(self.eval_metrics["reward"]) > self.best_mean_reward:
+            avg_reward = np.average(self.eval_metrics["reward"])
+            avg_timesteps = np.average(self.eval_metrics["timesteps"])
+            if avg_reward / avg_timesteps > self.best_reward_per_timestep:
                 self.model.save(os.path.join(self.model_save_folder, "best.zip"))
 
             # Log eval metrics to tensorboard 
@@ -91,7 +89,7 @@ class HybridCallback(BaseCallback):
         if self.num_timesteps % self.save_freq == 0:
             self.model.save(os.path.join(self.model_save_folder, f"{self.num_timesteps//1000}k.zip"))
 
-        return True # Return false if training aborted early
+        return True  # Return false if training aborted early
 
     def _on_rollout_end(self):
         if bool(self.eval_metrics):
@@ -105,4 +103,4 @@ class HybridCallback(BaseCallback):
         """
         Finalises the callback by closing the TensorBoard writer.
         """
-        self.writer.close()  # Close the writer at the end of trainingz
+        self.writer.close()  # Close the writer at the end of training

@@ -22,6 +22,7 @@ Tensorboard:
 """
 
 import time 
+import shutil
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env 
@@ -31,7 +32,7 @@ from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 150_000
+TRAINING_TIMESTEPS = 250_000
 
 MODEL_NAME = "simple_nav"
 
@@ -39,15 +40,18 @@ MODEL_NAME = "simple_nav"
 MODEL_DIR = os.path.join(os.getcwd(), "RL_training", MODEL_NAME) # /training/<model_name>/
 LOG_DIR = os.path.join(MODEL_DIR, "logs") # /training/<model_name>/logs/
 
+if os.path.exists(MODEL_DIR):
+    shutil.rmtree(MODEL_DIR)
+
 # Wrap the environment in a vectorized environment
 NUM_ENVS = 4
-vec_env = make_vec_env(create_env, n_envs=NUM_ENVS, vec_env_cls=DummyVecEnv) # Create the vectorized environment
+vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 
 model = PPO("MultiInputPolicy", env=vec_env, verbose=1, tensorboard_log=LOG_DIR)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
-start_time = time.time() # Start the timer
+start_time = time.time()  # Start the timer
 
 model.learn(
     total_timesteps=TRAINING_TIMESTEPS,

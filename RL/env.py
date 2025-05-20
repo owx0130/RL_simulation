@@ -167,7 +167,6 @@ class MyEnv(gym.Env):
         ### DAVID's ADDITION START ###
         obstacle_motion_type,
         max_spawned_obs = 0,
-        random_goal_position_status = True,
         
         simulation_status = True,
         record = False,
@@ -184,20 +183,21 @@ class MyEnv(gym.Env):
         self.detection_radius = detection_radius
 
         # Navigational data
-        self.goal_pos_xy = np.array(longlat_to_xy(goal_pos_longlat))
-        self.goal_pos_xy_rel = np.array([0,0])  # goal pos is set as the origin
-        self.agent_start_pos_xy = np.array(longlat_to_xy(agent_start_pos_longlat))
-        self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy  # relative position to goal pos
-        self.agent_initial_dist_to_goal = np.linalg.norm(self.agent_start_pos_xy_rel)
-        self.agent_angle_to_goal = 0
-        self.agent_dist_to_goal = 0
-        self.initial_heading_degs = heading_deg
-        self.random_start_pos = random_goal_position_status  # determines if start position is random
+        self.goal_pos_xy = None
+        self.agent_start_pos_xy = None
+        self.agent_start_pos_xy_rel = None  # relative position to goal pos
+        self.agent_angle_to_goal = None
+        self.agent_dist_to_goal = None
+        self.initial_heading_degs = None
         
         # Operation Environment for simulation
         self.ops_bubble_multiplier = ops_bubble_multiplier
-        self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
-        self.max_dist_in_boundary = 2 * self.ops_bubble_radius # diameter of circular boundary
+        self.ops_COG = None
+        self.ops_bubble_radius = None
+        self.ops_bottom_left = None
+        self.ops_top_right = None
+        self.max_ops_dist = None
+        self.max_dist_in_boundary = None  # diameter of circular boundary
         self.decision_rate = decision_rate
         self.safety_radius_dict = safety_radius_dict 
         self.reward_weights_dict = rewards_weights_dict 
@@ -211,7 +211,7 @@ class MyEnv(gym.Env):
         self.state = None
         self.prev_state = None
         self.time_step = 1 / self.decision_rate
-        self.end_time = (4 * self.ops_bubble_radius / self.cruising_speed_ms)
+        self.end_time = None
         self.elapsed_time = 0
         self.rewards_log = self.prev_rewards_log = {}
         self.collision_flags = [False] * self.max_obstacles
@@ -228,24 +228,15 @@ class MyEnv(gym.Env):
         self.grid_number = grid_number + 1  # number of grids
         self.display_rate = display_rate
         self.steps = int(self.display_rate / self.decision_rate)
-        self.size_pixels = max(self.metre_to_pixel(entity_size), 10)  # size of all squares representing agent/obstacles/goal
+        self.entity_size = entity_size
+        self.size_pixels = None  # size of all squares representing agent/obstacles/goal
         self.linewidth_pixels = self.left_column_width // 400  # width of squares
         self.grid_size = self.left_column_width // self.grid_number  # pixel size
-        self.grid_scale = self.ops_bubble_radius * 2 / self.grid_number  # metres
+        self.grid_scale = None  # metres
         self.colours_dict = colours_dict
         self.agent_pixel_pos_deque = deque([])  # track previous agent pos for drawing the trail line
-
-        # Find the closest scale (metres)
-        self.closest_scale = min(
-            [1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
-            key=lambda x: abs(x - self.grid_scale)
-        )
-
-        # Calculate the length of the line in pixels
-        self.line_length_pixels = int(
-            (self.closest_scale / (self.ops_bubble_radius * 2))
-            * (self.left_column_width - 2 * self.margins)
-        )
+        self.closest_scale = None
+        self.line_length_pixels = None
         
         # Define operating area on screen
         self.drawing_area = pygame.Rect(
@@ -340,7 +331,7 @@ class MyEnv(gym.Env):
         midpoint = (self.agent_start_pos_xy + self.goal_pos_xy) / 2
         
         # operational radius for training where the agent cannot exceed
-        ops_bubble_radius = self.agent_initial_dist_to_goal * self.ops_bubble_multiplier
+        ops_bubble_radius = np.linalg.norm(self.agent_start_pos_xy_rel) * self.ops_bubble_multiplier
         
         # Edges of the map
         min_xy = midpoint - ops_bubble_radius
@@ -383,19 +374,17 @@ class MyEnv(gym.Env):
 
         self.prev_rewards_log = copy.deepcopy(self.rewards_log)
 
-        # Reward moving towards the goal
+        # Reward moving towards the goal, penalize moving away from it
         prev_distance = np.linalg.norm(self.prev_agent.xy - self.goal_pos_xy)
         change_in_distance_to_goal = prev_distance - self.agent_dist_to_goal
-        change_in_distance_to_goal = max(change_in_distance_to_goal, 0)
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
-        # # Reward turning towards the goal
-        # normalized_change_in_angle_diff = ((abs(self.get_signed_angle_diff(self.prev_agent.xy, self.prev_agent.heading, self.goal_pos_xy))
-        #                                     - abs(self.agent_angle_to_goal)) 
-        #                                     / (self.max_yaw_rate_degs*self.time_step))   
-        # angle_change_reward = normalized_change_in_angle_diff * self.reward_weights_dict['angle_change_reward_weightage']
-        # self.log_rewards(angle_change_reward, "angle_change_reward")    
+        # Reward maintaining heading towards the goal
+        normalized_angle_to_goal = abs(self.agent_angle_to_goal) / 180
+        # print(self.agent_angle_to_goal, normalized_angle_to_goal)
+        angle_maintain_reward = -normalized_angle_to_goal * self.reward_weights_dict['angle_maintain_reward_weightage']
+        self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
         
         # # Time penalty (want agent to be efficient)
         # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
@@ -439,7 +428,7 @@ class MyEnv(gym.Env):
         # Final reward
         total_reward = (
             + distance_change_reward
-            # + angle_change_reward
+            + angle_maintain_reward
             # + time_penalty
             # + acc_penalty
             # + direction_penalty
@@ -455,6 +444,17 @@ class MyEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         
+        # Initialise navigation variables (random initialisation)
+        self.goal_pos_xy = self.generate_random_coords()
+        self.agent_start_pos_xy = self.generate_random_coords()
+        self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
+        self.initial_heading_degs = np.random.uniform(high=360)
+
+        # Initialise ops environment variables
+        self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
+        self.max_dist_in_boundary = 2 * self.ops_bubble_radius
+        self.end_time = 4 * self.ops_bubble_radius / self.cruising_speed_ms
+
         # Initialise agent object
         self.agent = Agent(
             self.agent_start_pos_xy,
@@ -489,6 +489,18 @@ class MyEnv(gym.Env):
             self.state[f"obs{i}_type"] = 0  # Initially unclassified
             self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
         
+        # Initialise screen-related variables
+        self.size_pixels = max(self.metre_to_pixel(self.entity_size), 10)
+        self.grid_scale = self.max_dist_in_boundary / self.grid_number
+        self.closest_scale = min(
+            [1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+            key=lambda x: abs(x - self.grid_scale)
+        )
+        self.line_length_pixels = int(
+            (self.closest_scale / self.max_dist_in_boundary) *
+            (self.left_column_width - 2 * self.margins)
+        )
+
         return self.state, {}
     
     def step(self, action):

@@ -43,7 +43,6 @@ env = MyEnv(
         
         obstacle_motion_type,   
         max_spawned_obs=no_of_generated_obs,
-        random_goal_position_status=random_agent_start_pos,
         
         simulation_status=True,
         record=False,
