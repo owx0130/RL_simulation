@@ -24,15 +24,15 @@ Tensorboard:
 import time 
 import shutil
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env 
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3 import PPO, SAC
+from stable_baselines3.common.env_util import make_vec_env
+
 
 from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 250_000
+TRAINING_TIMESTEPS = 50_000
 
 MODEL_NAME = "simple_nav"
 
@@ -43,11 +43,15 @@ LOG_DIR = os.path.join(MODEL_DIR, "logs") # /training/<model_name>/logs/
 if os.path.exists(MODEL_DIR):
     shutil.rmtree(MODEL_DIR)
 
-# Wrap the environment in a vectorized environment
-NUM_ENVS = 4
-vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
+# # Wrap the environment in a vectorized environment
+# NUM_ENVS = 4
+# vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 
-model = PPO("MultiInputPolicy", env=vec_env, verbose=1, tensorboard_log=LOG_DIR)
+model = SAC(
+    "MultiInputPolicy",
+    env=create_env(),
+    verbose=1,
+    tensorboard_log=LOG_DIR)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
@@ -58,8 +62,8 @@ model.learn(
     progress_bar=True,
     callback=HybridCallback(
         n_eval_episodes=3,
-        eval_freq=16384,
-        save_freq=16384,
+        eval_freq=5000,
+        save_freq=5000,
         save_path=MODEL_DIR,
         log_path=LOG_DIR,
         render=False

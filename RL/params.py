@@ -47,7 +47,7 @@ random_agent_start_pos = True # yet to be implemented properly (lack of time)
 distance_change_reward_weightage = 2
 angle_maintain_reward_weightage = 1
 time_penalty_weightage = -1
-exceed_ops_env_penalty_weightage = -500
+exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 1000
 obs_collision_penalty_weightage = -100
 

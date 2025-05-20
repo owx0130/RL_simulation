@@ -71,7 +71,6 @@ from RL.helper_funcs import *
 from RL.reference_values import *
 
 from collections import deque
-from math import sqrt
 
 # Object to represent the agent
 class Agent():
@@ -163,7 +162,8 @@ class MyEnv(gym.Env):
         rewards_weights_dict,
         entity_size,
         proximity_to_goal,
-        
+        difficulty,
+
         ### DAVID's ADDITION START ###
         obstacle_motion_type,
         max_spawned_obs = 0,
@@ -282,30 +282,31 @@ class MyEnv(gym.Env):
     def get_observation_space(self):
         "Returns initialized observation space"
 
-        # Initialize the observation space dictionary
+        # Initialize the observation space dictionary (normalized)
+        # dist_to_goal, sin(angle_diff_to_goal), cos(angle_diff_to_goal), velocity, heading
         observation_space_dict = {
             "agent": spaces.Box(
-                low=np.array([0, -1, 0, 0]),  # dist_to_goal_norm, angle_diff_to_goal_norm, velocity_norm, heading_norm
-                high=np.array([1, 1, 1, 1]),
+                low=np.array([0, -1, -1, 0, 0]),
+                high=np.array([1, 1, 1, 1, 1]),
                 dtype=np.float64,
             )
         }
 
-        # Loop to add obstacle spaces
-        for i in range(1, self.max_obstacles+1):
-            # obs1_active
-            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
-            # obs1_type
-            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
-            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
-            # obs1
-            observation_space_dict[f"obs{i}"] = spaces.Box(
-                low=np.array([0, -1, 0, 0, 0]),
-                high=np.array(
-                    [1, 1, 1, 1, max(self.safety_radius_dict.values())]
-                ),
-                dtype=np.float64,
-            )  # long, lat, velocity, heading, safety radius
+        # # Loop to add obstacle spaces
+        # for i in range(1, self.max_obstacles+1):
+        #     # obs1_active
+        #     observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
+        #     # obs1_type
+        #     observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
+        #     # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
+        #     # obs1
+        #     observation_space_dict[f"obs{i}"] = spaces.Box(
+        #         low=np.array([0, -1, 0, 0, 0]),
+        #         high=np.array(
+        #             [1, 1, 1, 1, max(self.safety_radius_dict.values())]
+        #         ),
+        #         dtype=np.float64,
+        #     )  # long, lat, velocity, heading, safety radius
 
         return spaces.Dict(observation_space_dict)
 
@@ -380,11 +381,10 @@ class MyEnv(gym.Env):
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
-        # Reward maintaining heading towards the goal
-        normalized_angle_to_goal = abs(self.agent_angle_to_goal) / 180
-        # print(self.agent_angle_to_goal, normalized_angle_to_goal)
-        angle_maintain_reward = -normalized_angle_to_goal * self.reward_weights_dict['angle_maintain_reward_weightage']
-        self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
+        # # Reward maintaining heading towards the goal
+        # normalized_angle_to_goal = abs(self.agent_angle_to_goal) / 180
+        # angle_maintain_reward = -normalized_angle_to_goal * self.reward_weights_dict['angle_maintain_reward_weightage']
+        # self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
         
         # # Time penalty (want agent to be efficient)
         # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
@@ -428,7 +428,7 @@ class MyEnv(gym.Env):
         # Final reward
         total_reward = (
             + distance_change_reward
-            + angle_maintain_reward
+            # + angle_maintain_reward
             # + time_penalty
             # + acc_penalty
             # + direction_penalty
@@ -445,10 +445,10 @@ class MyEnv(gym.Env):
     def reset(self, seed=None, options=None):
         
         # Initialise navigation variables (random initialisation)
-        self.goal_pos_xy = self.generate_random_coords()
-        self.agent_start_pos_xy = self.generate_random_coords()
+        self.goal_pos_xy = np.array([100.0, 200.0])
+        self.agent_start_pos_xy = np.array([300.0, 200.0])
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
-        self.initial_heading_degs = np.random.uniform(high=360)
+        self.initial_heading_degs = 170.0  # np.random.uniform(high=360)
 
         # Initialise ops environment variables
         self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
@@ -465,29 +465,31 @@ class MyEnv(gym.Env):
         # Initialise agent state
         self.agent_dist_to_goal = np.linalg.norm(self.agent.xy - self.goal_pos_xy)
         self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
-        
+        angle_diff_rad = np.radians(self.agent_angle_to_goal)   
+
         self.state = {
             'agent': np.array([
                 self.agent_dist_to_goal / self.max_dist_in_boundary,
-                self.agent_angle_to_goal / 180.0,
+                np.sin(angle_diff_rad),
+                np.cos(angle_diff_rad),
                 self.agent.velocity / self.max_velocity_ms,
                 self.agent.heading / 360.0
             ]).astype(np.float64)
         }
 
-        # Initialise obstacle states
-        self.obs_list = []
-        for i in range(1, self.max_obstacles + 1):
-            # Initialise Obstacle objects to keep track of obstacles
-            self.obs_list.append(Obstacle(
-                start_pos=self.agent_start_pos_xy,
-                start_heading=self.initial_heading_degs,
-                start_velocity=self.cruising_speed_ms,
-                safety_radius=0,
-                active=0))
-            self.state[f"obs{i}_active"] = self.obs_list[i-1].active
-            self.state[f"obs{i}_type"] = 0  # Initially unclassified
-            self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
+        # # Initialise obstacle states
+        # self.obs_list = []
+        # for i in range(1, self.max_obstacles + 1):
+        #     # Initialise Obstacle objects to keep track of obstacles
+        #     self.obs_list.append(Obstacle(
+        #         start_pos=self.agent_start_pos_xy,
+        #         start_heading=self.initial_heading_degs,
+        #         start_velocity=self.cruising_speed_ms,
+        #         safety_radius=0,
+        #         active=0))
+        #     self.state[f"obs{i}_active"] = self.obs_list[i-1].active
+        #     self.state[f"obs{i}_type"] = 0  # Initially unclassified
+        #     self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
         
         # Initialise screen-related variables
         self.size_pixels = max(self.metre_to_pixel(self.entity_size), 10)
@@ -514,10 +516,12 @@ class MyEnv(gym.Env):
         self.agent.update(self.acc_ms2, self.yaw_rate_degs, self.time_step)
         self.agent_dist_to_goal = np.linalg.norm(self.agent.xy - self.goal_pos_xy)
         self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
-        
+        angle_diff_rad = np.radians(self.agent_angle_to_goal)        
+
         self.state['agent'] = np.array([
             self.agent_dist_to_goal / self.max_dist_in_boundary,
-            self.agent_angle_to_goal / 180.0,
+            np.sin(angle_diff_rad),
+            np.cos(angle_diff_rad),
             self.agent.velocity / self.max_velocity_ms,
             self.agent.heading / 360.0])
         
@@ -530,29 +534,29 @@ class MyEnv(gym.Env):
         else:
             goal_reached = False
 
-        # Update obstacle state
-        self.prev_obs_list = copy.deepcopy(self.obs_list)  # copy previous obs state (mainly for animation)
-        for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
-            obs.update(self.time_step)
+        # # Update obstacle state
+        # self.prev_obs_list = copy.deepcopy(self.obs_list)  # copy previous obs state (mainly for animation)
+        # for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
+        #     obs.update(self.time_step)
 
-            # Check if obstacle is still detected by agent or exceeded ops env
-            if (np.linalg.norm(obs.xy - self.agent.xy) > self.detection_radius or 
-                np.linalg.norm(obs.xy - self.ops_COG) > self.ops_bubble_radius):
-                obs.active = 0  # Deactivate obstacle
+        #     # Check if obstacle is still detected by agent or exceeded ops env
+        #     if (np.linalg.norm(obs.xy - self.agent.xy) > self.detection_radius or 
+        #         np.linalg.norm(obs.xy - self.ops_COG) > self.ops_bubble_radius):
+        #         obs.active = 0  # Deactivate obstacle
 
-            # Randomly decide whether to generate new obstacle
-            if obs.active == 0 and True:
-                obs = self.generate_obstacle() 
-                self.obs_list[i - 1] = obs
+        #     # Randomly decide whether to generate new obstacle
+        #     if obs.active == 0 and True:
+        #         obs = self.generate_obstacle() 
+        #         self.obs_list[i - 1] = obs
 
-            self.state[f'obs{i}_active'] = obs.active
-            self.state[f'obs{i}'] = np.array([
-                np.linalg.norm(obs.xy-self.agent.xy) / self.max_dist_in_boundary,
-                self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
-                obs.velocity / self.max_obs_velocity_ms,
-                obs.heading / 360.0,
-                obs.safety_radius])
-            self.state[f'obs{i}_type'] = self.classify_obstacle(obs)
+        #     self.state[f'obs{i}_active'] = obs.active
+        #     self.state[f'obs{i}'] = np.array([
+        #         np.linalg.norm(obs.xy-self.agent.xy) / self.max_dist_in_boundary,
+        #         self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
+        #         obs.velocity / self.max_obs_velocity_ms,
+        #         obs.heading / 360.0,
+        #         obs.safety_radius])
+        #     self.state[f'obs{i}_type'] = self.classify_obstacle(obs)
 
         # Get reward    
         reward = self.get_reward(self.acc_ms2, self.yaw_rate_degs, in_ops_env, goal_reached)
@@ -1017,7 +1021,7 @@ class MyEnv(gym.Env):
                 self.draw_agent(interpolate=True, j=j)
                 
                 # Drawing (dynamic obstacles)
-                self.draw_obstacles(interpolate=True, j=j)
+                # self.draw_obstacles(interpolate=True, j=j)
                 
                 # Draw static elements
                 self.draw_margins()

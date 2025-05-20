@@ -12,7 +12,7 @@ Example:
     $ python visualize_model.py
 """
 
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 from env import MyEnv  # Import your custom environment module
 from params import *
 
@@ -50,7 +50,7 @@ env = MyEnv(
     )
 
 # Load the trained model
-model = PPO.load(r"RL_training\simple_nav\models\best.zip")
+model = SAC.load(r"RL_training\simple_nav\models\best.zip")
 
 # Reset the environment and get the initial observation
 obs, _ = env.reset()

@@ -2,7 +2,7 @@ from stable_baselines3 import PPO
 from RL.params import *
 from RL.env import MyEnv
 
-def create_env(rec=False, vid_name="Current", sim_status=False):
+def create_env(difficulty, rec=False, vid_name="Current", sim_status=False):
     return MyEnv(
         agent_start_pos_longlat,
         goal_pos_longlat,
@@ -26,7 +26,8 @@ def create_env(rec=False, vid_name="Current", sim_status=False):
         rewards_weights_dict,
         entity_size,
         proximity_to_goal,
-        
+        difficulty,
+
         obstacle_motion_type,
         max_spawned_obs=no_of_generated_obs,
         
