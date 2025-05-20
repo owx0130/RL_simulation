@@ -13,41 +13,11 @@ Example:
 """
 
 from stable_baselines3 import PPO, SAC
-from env import MyEnv  # Import your custom environment module
 from params import *
+from model_funcs import *
 
 # Create the environment
-env = MyEnv(
-        agent_start_pos_longlat,
-        goal_pos_longlat,
-        heading,
-        max_velocity_knots,
-        cruising_speed_knots,
-        max_acc_ms2,
-        max_yaw_rate_degs,
-        detection_radius,
-        min_obs_detection_radius,
-        screen_height,
-        screen_width,
-        margins,
-        ops_bubble_multiplier,
-        grid_number,
-        decision_rate,
-        display_rate,
-        colours_dict,
-        max_obstacles,
-        safety_radius_dict,
-        rewards_weights_dict,
-        entity_size,
-        proximity_to_goal,
-        
-        obstacle_motion_type,   
-        max_spawned_obs=no_of_generated_obs,
-        
-        simulation_status=True,
-        record=False,
-        video_name="model_performance",
-    )
+env = create_env(difficulty=0)
 
 # Load the trained model
 model = SAC.load(r"RL_training\simple_nav\models\best.zip")

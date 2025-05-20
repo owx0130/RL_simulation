@@ -27,12 +27,11 @@ import shutil
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 
-
 from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 50_000
+TRAINING_TIMESTEPS = 100_000
 
 MODEL_NAME = "simple_nav"
 
@@ -49,7 +48,7 @@ if os.path.exists(MODEL_DIR):
 
 model = SAC(
     "MultiInputPolicy",
-    env=create_env(),
+    env=create_env(difficulty=0),
     verbose=1,
     tensorboard_log=LOG_DIR)
 

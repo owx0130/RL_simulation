@@ -46,7 +46,7 @@ class HybridCallback(BaseCallback):
         self.best_reward_per_timestep = -float('inf')
         self.writer = SummaryWriter(log_dir=log_path)
         self.eval_metrics = {}
-        self.eval_env = create_env()
+        self.eval_env = create_env(difficulty=0)
 
         os.makedirs(self.model_save_folder, exist_ok=True)  # Creates the folder if it doesn't exist
 

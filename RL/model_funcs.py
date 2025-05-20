@@ -2,7 +2,7 @@ from stable_baselines3 import PPO
 from RL.params import *
 from RL.env import MyEnv
 
-def create_env(difficulty, rec=False, vid_name="Current", sim_status=False):
+def create_env(difficulty, rec=False, vid_name="Current", sim_status=True):
     return MyEnv(
         agent_start_pos_longlat,
         goal_pos_longlat,

@@ -378,13 +378,13 @@ class MyEnv(gym.Env):
         # Reward moving towards the goal, penalize moving away from it
         prev_distance = np.linalg.norm(self.prev_agent.xy - self.goal_pos_xy)
         change_in_distance_to_goal = prev_distance - self.agent_dist_to_goal
-        distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_reward_weightage"]
+        distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
-        # # Reward maintaining heading towards the goal
-        # normalized_angle_to_goal = abs(self.agent_angle_to_goal) / 180
-        # angle_maintain_reward = -normalized_angle_to_goal * self.reward_weights_dict['angle_maintain_reward_weightage']
-        # self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
+        # Reward maintaining heading towards the goal, penalize for heading away from it
+        angle_diff_cos = np.cos(np.radians(self.agent_angle_to_goal))
+        angle_maintain_reward = angle_diff_cos * self.reward_weights_dict['angle_maintain_weightage']
+        self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
         
         # # Time penalty (want agent to be efficient)
         # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
@@ -428,7 +428,7 @@ class MyEnv(gym.Env):
         # Final reward
         total_reward = (
             + distance_change_reward
-            # + angle_maintain_reward
+            + angle_maintain_reward
             # + time_penalty
             # + acc_penalty
             # + direction_penalty
@@ -445,10 +445,10 @@ class MyEnv(gym.Env):
     def reset(self, seed=None, options=None):
         
         # Initialise navigation variables (random initialisation)
-        self.goal_pos_xy = np.array([100.0, 200.0])
-        self.agent_start_pos_xy = np.array([300.0, 200.0])
+        self.goal_pos_xy = self.generate_random_coords()
+        self.agent_start_pos_xy = np.array([250, 250.0])
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
-        self.initial_heading_degs = 170.0  # np.random.uniform(high=360)
+        self.initial_heading_degs = np.random.uniform(high=360)
 
         # Initialise ops environment variables
         self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()

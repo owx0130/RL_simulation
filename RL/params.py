@@ -44,8 +44,8 @@ simulation_status = True
 random_agent_start_pos = True # yet to be implemented properly (lack of time)
 
 # Penalty weightages
-distance_change_reward_weightage = 2
-angle_maintain_reward_weightage = 1
+distance_change_weightage = 2
+angle_maintain_weightage = 1
 time_penalty_weightage = -1
 exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 1000
@@ -59,8 +59,8 @@ obs_crossing_port_direction_change_penalty_weightage = -1  # continue on current
 obs_overtaking_penalty_weightage = -1  # do not cross in front of obstacle
 
 rewards_weights_dict = {
-    "distance_change_reward_weightage": distance_change_reward_weightage,
-    "angle_maintain_reward_weightage": angle_maintain_reward_weightage, 
+    "distance_change_weightage": distance_change_weightage,
+    "angle_maintain_weightage": angle_maintain_weightage, 
     "time_penalty_weightage": time_penalty_weightage,
     "exceed_ops_env_penalty_weightage": exceed_ops_env_penalty_weightage,
     "goal_reward_weightage": goal_reward_weightage,
