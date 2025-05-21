@@ -49,7 +49,6 @@ if os.path.exists(MODEL_DIR):
 model = SAC(
     "MultiInputPolicy",
     env=create_env(difficulty=0),
-    verbose=1,
     tensorboard_log=LOG_DIR)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")

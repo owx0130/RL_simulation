@@ -446,7 +446,7 @@ class MyEnv(gym.Env):
         
         # Initialise navigation variables (random initialisation)
         self.goal_pos_xy = self.generate_random_coords()
-        self.agent_start_pos_xy = np.array([250, 250.0])
+        self.agent_start_pos_xy = self.generate_random_coords()
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
         self.initial_heading_degs = np.random.uniform(high=360)
 

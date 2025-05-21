@@ -1,3 +1,8 @@
 __pycache__/
-RL_training/
+RL_training/simple_nav
+RL_training/simple_nav_10obs
+RL_training/simple_nav_no_obs
+RL_training/*/logs
+RL_training/*/models/*
+!RL_training/*/models/best.zip
 venv/
