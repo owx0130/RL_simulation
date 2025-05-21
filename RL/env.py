@@ -284,7 +284,7 @@ class MyEnv(gym.Env):
     def get_observation_space(self):
         "Returns initialized observation space"
 
-        # Initialize the observation space dictionary (normalized)
+        # Agent observation space (normalized)
         # dist_to_goal, sin(angle_diff_to_goal), cos(angle_diff_to_goal), velocity, heading
         observation_space_dict = {
             "agent": spaces.Box(
@@ -294,21 +294,31 @@ class MyEnv(gym.Env):
             )
         }
 
-        # Loop to add obstacle spaces
-        for i in range(1, self.max_obstacles+1):
-            # obs1_active
-            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
-            # obs1_type
-            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
-            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
-            # obs1
-            observation_space_dict[f"obs{i}"] = spaces.Box(
-                low=np.array([0, -1, 0, 0, 0]),
-                high=np.array(
-                    [1, 1, 1, 1, max(self.safety_radius_dict.values())]
-                ),
+        # Obstacle observation space (normalized)
+        # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, heading
+        observation_space_dict = {
+            "obstacles": spaces.Box(
+                low=np.array([0, -1, -1, 0, 0]),
+                high=np.array([1, 1, 1, 1, 1]),
                 dtype=np.float64,
             )
+        }
+
+        # # Loop to add obstacle spaces
+        # for i in range(1, self.max_obstacles+1):
+        #     # obs1_active
+        #     observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
+        #     # obs1_type
+        #     observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
+        #     # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
+        #     # obs1
+        #     observation_space_dict[f"obs{i}"] = spaces.Box(
+        #         low=np.array([0, -1, 0, 0, 0]),
+        #         high=np.array(
+        #             [1, 1, 1, 1, max(self.safety_radius_dict.values())]
+        #         ),
+        #         dtype=np.float64,
+        #     )
 
         return spaces.Dict(observation_space_dict)
 
@@ -393,6 +403,7 @@ class MyEnv(gym.Env):
         
         else:
             obs_type = 0 # unclassified
+            
         return obs_type
 
     def closest_distance_with_agent(self, obstacle: Obstacle):
@@ -405,28 +416,142 @@ class MyEnv(gym.Env):
         obs_math_angle = compass_to_math_angle(obstacle.heading)
 
         def distance(t):
-            new_agent_xy = (self.agent.xy + self.agent.velocity * t * 
-                            np.array(
-                                [np.cos(np.deg2rad(agent_math_angle)),
-                                 np.sin(np.deg2rad(agent_math_angle))]
-                            )
-            )
+            new_agent_xy = self.agent.xy + self.agent.velocity * t * np.array([
+                np.cos(np.deg2rad(agent_math_angle)),
+                np.sin(np.deg2rad(agent_math_angle))
+                ])
 
-            new_obs_xy = (obstacle.xy + obstacle.velocity * t * 
-                        np.array(
-                                [np.cos(np.deg2rad(obs_math_angle)),
-                                 np.sin(np.deg2rad(obs_math_angle))]
-                            )
-            )
+            new_obs_xy = obstacle.xy + obstacle.velocity * t * np.array([
+                np.cos(np.deg2rad(obs_math_angle)),
+                np.sin(np.deg2rad(obs_math_angle))
+                ])
 
             return np.linalg.norm(new_agent_xy - new_obs_xy)
 
         result = opt.minimize_scalar(
             distance,
             bounds=(0, max(0.01, self.end_time - self.elapsed_time)),
-            method="bounded",
+            method="bounded"
         )
+
         return result.fun, result.x     # time_at_closest_distance, closest_distance
+
+    def generate_obstacle(self):
+
+        """Generate an obstacle and return the obstacle's Obstacle object"""            
+        obs_type = np.random.choice([1, 2, 3, 4])
+        
+        # Randomly determine obs velocity based on obstacle type
+        obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
+        
+        if self.obstacle_motion_type == 0: # Static obstacles
+            obs_velocity = 0
+        elif self.obstacle_motion_type == 2: # Mixed obstacle type
+            if np.random.choice([0, 1]) == 0: # Randomly decide if they are static or constant motion
+                obs_velocity = 0
+
+        obs_size = np.random.choice(list(self.safety_radius_dict.keys())) # Randomly decide their size
+        obs_safety_radius = self.safety_radius_dict[obs_size]
+        
+        if obs_velocity == 0: # for static obstacles
+            obs_type = 0
+            
+            min_spawn_radius= self.detection_radius*0.5 
+            max_spawn_radius = self.detection_radius*0.8        # metres
+            spawn_radius = np.random.uniform(min_spawn_radius, max_spawn_radius)
+            
+            i = 0
+            while True: # Randomly select obstacle position until it is within the ops env
+                
+                i += 1
+                rel_heading = random_sample((-100, -20), (20, 100)) # Relative angle of obs to agent heading
+                abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
+                # Calculate obstacle spawn position
+                obs_xy = (self.agent.xy + spawn_radius * 
+                                np.array(
+                                    [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
+                                    np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
+                                ) 
+                )
+                # Check if position is within the bounds of the ops area
+                if np.all(obs_xy<=self.ops_top_right) and np.all(obs_xy>=self.ops_bottom_left):
+                    break
+                
+                if i >= 10:
+                    break
+
+            obs_heading = np.random.uniform(0,360) # Pick a random heading for the obstacle (not impt since obs not moving)                            
+
+        else:   
+            # Calculate collision point
+            if self.agent.velocity == 0:
+                time_to_collision = self.end_time - self.elapsed_time
+            else:
+                time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
+                
+                time_upper_bound = time_to_rch_goal * 0.7
+                time_lower_bound = time_to_rch_goal * 0.4
+                
+                if time_upper_bound < 3.0:  # Handle case where agent is too close to goal
+                    time_to_collision = 3.0
+                else:
+                    time_to_collision = np.random.uniform(time_lower_bound, time_upper_bound)
+                    
+            collision_xy = self.agent.xy + self.agent.velocity * time_to_collision * np.array([
+                np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
+                np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))
+                ])
+
+            # type 1 will subsequently offset starting position to avoid obstacle
+            if obs_type == 1:  # heading away
+                rel_heading = random_sample((10.0, 170.0), (190.0, 350.0))
+                # relative heading of obstacle from collision point
+
+            elif obs_type == 2:  # head on
+                rel_heading = np.random.uniform(-10.0, 10.0)
+                # relative heading of obstacle from collision point
+
+            elif obs_type == 3:  # crossing
+                rel_heading = random_sample((40, 112.5), (247.5, 320))
+                # relative heading of obstacle from collision point
+
+            elif obs_type == 4:  # overtaking
+                rel_heading = np.random.uniform(170, 190)
+                # relative heading of obstacle from collision point
+                
+                obs_velocity = np.random.uniform(
+                    self.agent.velocity*0.3, self.max_obs_velocity_ms
+                )
+
+            # common to all obstacles
+            abs_heading = (self.agent.heading + rel_heading) % 360  # ensure within 360 degrees
+            
+            obs_distance = time_to_collision * obs_velocity  # from target point
+            
+            # calculate obstacle starting position
+            obs_xy = collision_xy + obs_distance * np.array([
+                np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
+                np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))
+                ])
+
+            obs_heading = (math_angle_to_compass(
+                np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))) % 360
+            )
+            
+            if obs_type == 1:  # offset starting position to avoid obstacle
+                offset_heading = (obs_heading + np.random.choice([90, -90])) % 360
+                obs_xy += obs_safety_radius * 5 * np.array([
+                    np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
+                    np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))
+                    ])
+
+        return Obstacle(
+            start_pos=obs_xy,
+            start_heading=obs_heading,
+            start_velocity=obs_velocity,
+            safety_radius=obs_safety_radius,
+            active=1
+            )
 
     def log_rewards(self, reward, reward_name):
         """Logs each reward/penalty to the rewards_log dict for display in logs table and
@@ -439,7 +564,7 @@ class MyEnv(gym.Env):
             self.rewards_log[reward_name] = reward 
         return
     
-    def get_reward(self, normalized_acc, normalized_yaw_rate, in_ops_env, goal_reached):
+    def get_reward(self, in_ops_env, goal_reached):
         "Calculates the total reward"
         
         ### DAVID's EDIT START ###
@@ -548,19 +673,19 @@ class MyEnv(gym.Env):
             ]).astype(np.float64)
         }
 
-        # # Initialise obstacle states
-        # self.obs_list = []
-        # for i in range(1, self.max_obstacles + 1):
-        #     # Initialise Obstacle objects to keep track of obstacles
-        #     self.obs_list.append(Obstacle(
-        #         start_pos=self.agent_start_pos_xy,
-        #         start_heading=self.initial_heading_degs,
-        #         start_velocity=self.cruising_speed_ms,
-        #         safety_radius=0,
-        #         active=0))
-        #     self.state[f"obs{i}_active"] = self.obs_list[i-1].active
-        #     self.state[f"obs{i}_type"] = 0  # Initially unclassified
-        #     self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
+        # Initialise obstacle states
+        self.obs_list = []
+        for i in range(1, self.max_obstacles + 1):
+            # Initialise Obstacle objects to keep track of obstacles
+            self.obs_list.append(Obstacle(
+                start_pos=self.agent_start_pos_xy,
+                start_heading=self.initial_heading_degs,
+                start_velocity=self.cruising_speed_ms,
+                safety_radius=0,
+                active=0))
+            self.state[f"obs{i}_active"] = self.obs_list[i-1].active
+            self.state[f"obs{i}_type"] = 0  # Initially unclassified
+            self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
         
         # Initialise screen-related variables
         self.size_pixels = max(self.metre_to_pixel(self.entity_size), 10)
@@ -630,7 +755,7 @@ class MyEnv(gym.Env):
         #     self.state[f'obs{i}_type'] = self.classify_obstacle(obs)
 
         # Get reward    
-        reward = self.get_reward(self.acc_ms2, self.yaw_rate_degs, in_ops_env, goal_reached)
+        reward = self.get_reward(in_ops_env, goal_reached)
 
         # Update elapsed time
         self.elapsed_time += self.time_step
@@ -812,135 +937,6 @@ class MyEnv(gym.Env):
     #     angle_diff = min(angle_diff, 360 - angle_diff) # Calculate the smallest angle difference between agent and goal heading
 
     #     return angle_diff
-    
-    # def generate_obstacle(self):
-    #     """Generate an obstacle and return the obstacle's Obstacle object"""
-            
-    #     ### DAVID's EDIT START ###
-    #     obs_type = np.random.choice([1, 2, 3, 4])
-        
-    #     # Randomly determine obs velocity based on obstacle type
-    #     obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
-        
-    #     if self.obstacle_motion_type == 0: # Static obstacles
-    #         obs_velocity = 0
-    #     elif self.obstacle_motion_type == 2: # Mixed obstacle type
-    #         if np.random.choice([0, 1]) == 0: # Randomly decide if they are static or constant motion
-    #             obs_velocity = 0
-
-    #     obs_size = np.random.choice(list(self.safety_radius_dict.keys())) # Randomly decide their size
-    #     obs_safety_radius = self.safety_radius_dict[obs_size]
-        
-    #     if obs_velocity == 0: # for static obstacles
-    #         obs_type = 0
-            
-    #         min_spawn_radius= self.detection_radius*0.5 
-    #         max_spawn_radius = self.detection_radius*0.8        # metres
-    #         spawn_radius = np.random.uniform(min_spawn_radius, max_spawn_radius)
-            
-    #         i = 0
-    #         while True: # Randomly select obstacle position until it is within the ops env
-                
-    #             i += 1
-    #             rel_heading = random_sample((-100, -20), (20, 100)) # Relative angle of obs to agent heading
-    #             abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
-    #             # Calculate obstacle spawn position
-    #             obs_xy = (self.agent.xy + spawn_radius * 
-    #                             np.array(
-    #                                 [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
-    #                                 np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
-    #                             ) 
-    #             )
-    #             # Check if position is within the bounds of the ops area
-    #             if np.all(obs_xy<=self.ops_top_right) and np.all(obs_xy>=self.ops_bottom_left):
-    #                 break
-                
-    #             if i >= 10:
-    #                 break
-
-    #         obs_heading = np.random.uniform(0,360) # Pick a random heading for the obstacle (not impt since obs not moving)                            
-
-    #     else:   
-    #         # Calculate collision point
-    #         if self.agent.velocity == 0:
-    #             time_to_collision = self.end_time - self.elapsed_time
-    #         else:
-    #             time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
-                
-    #             time_upper_bound = time_to_rch_goal * 0.7
-    #             time_lower_bound = time_to_rch_goal * 0.4
-                
-    #             if time_upper_bound < 3.0:  # Handle case where agent is too close to goal
-    #                 time_to_collision = 3.0
-    #             else:
-    #                 time_to_collision = np.random.uniform(
-    #                     time_lower_bound, time_upper_bound
-    #                 )
-                    
-    #         collision_xy = (self.agent.xy + self.agent.velocity * time_to_collision * 
-    #                         np.array([
-    #                                 np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
-    #                                 np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))
-    #                                     ])
-    #                         )
-
-    #         # type 1 will subsequently offset starting position to avoid obstacle
-    #         if obs_type == 1:  # heading away
-    #             rel_heading = random_sample((10.0, 170.0), (190.0, 350.0))
-    #             # relative heading of obstacle from collision point
-
-    #         elif obs_type == 2:  # head on
-    #             rel_heading = np.random.uniform(-10.0, 10.0)
-    #             # relative heading of obstacle from collision point
-
-    #         elif obs_type == 3:  # crossing
-    #             rel_heading = random_sample((40, 112.5), (247.5, 320))
-    #             # relative heading of obstacle from collision point
-
-    #         elif obs_type == 4:  # overtaking
-    #             rel_heading = np.random.uniform(170, 190)
-    #             # relative heading of obstacle from collision point
-                
-    #             obs_velocity = np.random.uniform(
-    #                 self.agent.velocity*0.3, self.max_obs_velocity_ms
-    #             )
-
-    #         # common to all obstacles
-    #         abs_heading = (self.agent.heading + rel_heading) % 360  # ensure within 360 degrees
-            
-    #         obs_distance = time_to_collision * obs_velocity  # from target point
-            
-    #         # calculate obstacle starting position
-    #         obs_xy = (collision_xy + obs_distance * 
-    #                 np.array(
-    #                     [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
-    #                     np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
-    #                     )
-    #                 )
-
-    #         obs_heading = (
-    #             math_angle_to_compass(
-    #                 np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))
-    #             ) % 360
-    #         )
-            
-    #         if obs_type == 1:  # offset starting position to avoid obstacle
-    #             offset_heading = ( obs_heading + np.random.choice([90, -90])
-    #             ) % 360
-    #             obs_xy += (obs_safety_radius * 5 * 
-    #                 np.array(
-    #                     [np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
-    #                     np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))]
-    #                     )
-    #                 )
-
-    #     return Obstacle(
-    #                 start_pos=obs_xy,
-    #                 start_heading=obs_heading,
-    #                 start_velocity=obs_velocity,
-    #                 safety_radius=obs_safety_radius,
-    #                 active=1
-    #                 )
     
     # @staticmethod
     # def power_reward_func(pt1, pt2, cal_pt, concavity, power):
