@@ -294,32 +294,31 @@ class MyEnv(gym.Env):
             )
         }
 
-        # Obstacle observation space (normalized)
-        # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, heading
-        observation_space_dict = {
-            "obstacles": spaces.Box(
-                low=np.array([0, -1, -1, 0, 0]),
-                high=np.array([1, 1, 1, 1, 1]),
-                dtype=np.float64,
-            )
-        }
-
-        # # Loop to add obstacle spaces
-        # for i in range(1, self.max_obstacles+1):
-        #     # obs1_active
-        #     observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
-        #     # obs1_type
-        #     observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
-        #     # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
-        #     # obs1
-        #     observation_space_dict[f"obs{i}"] = spaces.Box(
-        #         low=np.array([0, -1, 0, 0, 0]),
-        #         high=np.array(
-        #             [1, 1, 1, 1, max(self.safety_radius_dict.values())]
-        #         ),
+        # # Obstacle observation space (normalized)
+        # # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, heading
+        # observation_space_dict = {
+        #     "obstacles": spaces.Box(
+        #         low=np.array([0, -1, -1, 0, 0]),
+        #         high=np.array([1, 1, 1, 1, 1]),
         #         dtype=np.float64,
         #     )
+        # }
 
+        # Loop to add obstacle spaces
+        for i in range(1, self.max_obstacles+1):
+            # obs1_active
+            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
+            # obs1_type
+            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
+            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
+            # obs1
+            observation_space_dict[f"obs{i}"] = spaces.Box(
+                low=np.array([0, -1, -1, 0, 0, 0]),
+                high=np.array(
+                    [1, 1, 1, 1, 1, max(self.safety_radius_dict.values())]
+                ),
+                dtype=np.float64,
+            )
         return spaces.Dict(observation_space_dict)
 
     def get_signed_angle_diff(self, pt1, heading, pt2):
@@ -403,7 +402,7 @@ class MyEnv(gym.Env):
         
         else:
             obs_type = 0 # unclassified
-            
+
         return obs_type
 
     def closest_distance_with_agent(self, obstacle: Obstacle):
@@ -439,7 +438,7 @@ class MyEnv(gym.Env):
     def generate_obstacle(self):
 
         """Generate an obstacle and return the obstacle's Obstacle object"""            
-        obs_type = np.random.choice([1, 2, 3, 4])
+        obs_type =  np.random.choice([1, 2, 3, 4])
         
         # Randomly determine obs velocity based on obstacle type
         obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
@@ -686,7 +685,7 @@ class MyEnv(gym.Env):
             self.state[f"obs{i}_active"] = self.obs_list[i-1].active
             self.state[f"obs{i}_type"] = 0  # Initially unclassified
             self.state[f"obs{i}"] = np.append(self.state["agent"], [0]).astype(np.float64)
-        
+
         # Initialise screen-related variables
         self.size_pixels = max(self.metre_to_pixel(self.entity_size), 10)
         self.grid_scale = self.max_dist_in_boundary / self.grid_number
@@ -730,29 +729,30 @@ class MyEnv(gym.Env):
         else:
             goal_reached = False
 
-        # # Update obstacle state
-        # self.prev_obs_list = copy.deepcopy(self.obs_list)  # copy previous obs state (mainly for animation)
-        # for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
-        #     obs.update(self.time_step)
+        # Update obstacle state
+        self.prev_obs_list = copy.deepcopy(self.obs_list)  # copy previous obs state (mainly for animation)
+        for i, obs in enumerate(self.obs_list[:self.max_spawned_obs], start=1):
+            obs.update(self.time_step)
 
-        #     # Check if obstacle is still detected by agent or exceeded ops env
-        #     if (np.linalg.norm(obs.xy - self.agent.xy) > self.detection_radius or 
-        #         np.linalg.norm(obs.xy - self.ops_COG) > self.ops_bubble_radius):
-        #         obs.active = 0  # Deactivate obstacle
+            # Check if obstacle is still detected by agent or exceeded ops env
+            if (np.linalg.norm(obs.xy - self.agent.xy) > self.detection_radius or 
+                np.linalg.norm(obs.xy - self.ops_COG) > self.ops_bubble_radius):
+                obs.active = 0  # Deactivate obstacle
 
-        #     # Randomly decide whether to generate new obstacle
-        #     if obs.active == 0 and True:
-        #         obs = self.generate_obstacle() 
-        #         self.obs_list[i - 1] = obs
+            # Randomly decide whether to generate new obstacle
+            if obs.active == 0 and True:
+                obs = self.generate_obstacle() 
+                self.obs_list[i - 1] = obs
 
-        #     self.state[f'obs{i}_active'] = obs.active
-        #     self.state[f'obs{i}'] = np.array([
-        #         np.linalg.norm(obs.xy-self.agent.xy) / self.max_dist_in_boundary,
-        #         self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
-        #         obs.velocity / self.max_obs_velocity_ms,
-        #         obs.heading / 360.0,
-        #         obs.safety_radius])
-        #     self.state[f'obs{i}_type'] = self.classify_obstacle(obs)
+            self.state[f'obs{i}_active'] = obs.active
+            self.state[f'obs{i}'] = np.array([
+                np.linalg.norm(obs.xy-self.agent.xy) / self.max_dist_in_boundary,
+                self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
+                self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
+                obs.velocity / self.max_obs_velocity_ms,
+                obs.heading / 360.0,
+                obs.safety_radius])
+            self.state[f'obs{i}_type'] = self.classify_obstacle(obs)
 
         # Get reward    
         reward = self.get_reward(in_ops_env, goal_reached)
@@ -1019,7 +1019,7 @@ class MyEnv(gym.Env):
                 self.draw_agent(interpolate=True, j=j)
                 
                 # Drawing (dynamic obstacles)
-                # self.draw_obstacles(interpolate=True, j=j)
+                self.draw_obstacles(interpolate=True, j=j)
                 
                 # Draw static elements
                 self.draw_margins()
