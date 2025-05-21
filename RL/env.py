@@ -162,7 +162,6 @@ class MyEnv(gym.Env):
         rewards_weights_dict,
         entity_size,
         proximity_to_goal,
-        difficulty,
 
         ### DAVID's ADDITION START ###
         obstacle_motion_type,
@@ -259,10 +258,10 @@ class MyEnv(gym.Env):
         # Record video
         self.video_name = video_name
         self.record = record
-        if self.record:         # Set up the video writer
+        if self.record:
             self.vid_holder = cv2.VideoWriter(
                 f"{self.video_name}.mp4", 
-                cv2.VideoWriter_fourcc(*'mp4v'),  # MP4 codec
+                cv2.VideoWriter_fourcc(*'mp4v'),
                 display_rate, 
                 (self.screen_width, self.screen_height))
 
@@ -292,21 +291,21 @@ class MyEnv(gym.Env):
             )
         }
 
-        # # Loop to add obstacle spaces
-        # for i in range(1, self.max_obstacles+1):
-        #     # obs1_active
-        #     observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
-        #     # obs1_type
-        #     observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
-        #     # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
-        #     # obs1
-        #     observation_space_dict[f"obs{i}"] = spaces.Box(
-        #         low=np.array([0, -1, 0, 0, 0]),
-        #         high=np.array(
-        #             [1, 1, 1, 1, max(self.safety_radius_dict.values())]
-        #         ),
-        #         dtype=np.float64,
-        #     )  # long, lat, velocity, heading, safety radius
+        # Loop to add obstacle spaces
+        for i in range(1, self.max_obstacles+1):
+            # obs1_active
+            observation_space_dict[f"obs{i}_active"] = spaces.Discrete(2)  # 0 if inactive, 1 if active
+            # obs1_type
+            observation_space_dict[f"obs{i}_type"] = spaces.Discrete(5)
+            # 1 if heading away, 2 if head on, 3 if crossing, 4 for overtaking
+            # obs1
+            observation_space_dict[f"obs{i}"] = spaces.Box(
+                low=np.array([0, -1, 0, 0, 0]),
+                high=np.array(
+                    [1, 1, 1, 1, max(self.safety_radius_dict.values())]
+                ),
+                dtype=np.float64,
+            )
 
         return spaces.Dict(observation_space_dict)
 
@@ -356,6 +355,75 @@ class MyEnv(gym.Env):
             return True
         else: 
             return False
+
+    def classify_obstacle(self, obs: Obstacle):
+        "Classifies each obstacle based on its relative position to the agent, velocity and heading"
+            
+        if obs.active == 1:  # if obstacle active 
+            closest_distance, t = self.closest_distance_with_agent(obstacle=obs)
+
+            # Calculate xy coordinates of closest distance to obs
+            xy_closest_distance = (self.agent.xy + self.agent.velocity * t * 
+                                    np.array(
+                                        [np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
+                                        np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))]
+                                        )
+            )
+
+            # difference in heading between agent and obstacle
+            heading_diff = (obs.heading - self.agent.heading) % 360  # [0, 360]
+            heading_diff = min(heading_diff, 360-heading_diff) 
+            
+            if obs.velocity < self.min_obs_velocity_ms: # Assume the obstacle is stationary if velocity too small
+                obs_type = 0       # unclassified
+                obs.velocity = 0   # 0 m/s
+            elif closest_distance < obs.safety_radius*2 and self.check_in_operational_environment(xy_closest_distance):  
+                if 160 <= heading_diff < 200:
+                    obs_type = 2   # head on
+                elif 0 <= heading_diff < 20 or 340 <= heading_diff <= 360:
+                    obs_type = 4   # overtaking
+                else:
+                    obs_type =  3  # crossing
+
+            else: # if point of closest distance is not in ops env, unlikely to collide
+                obs_type = 1  # heading away
+        
+        else:
+            obs_type = 0 # unclassified
+        return obs_type
+
+    def closest_distance_with_agent(self, obstacle: Obstacle):
+        """Returns the closest projected distance between the 
+        agent and an obstacle from the current time until end of episode
+
+        obstacle = Obstacle()"""
+
+        agent_math_angle = compass_to_math_angle(self.agent.heading)
+        obs_math_angle = compass_to_math_angle(obstacle.heading)
+
+        def distance(t):
+            new_agent_xy = (self.agent.xy + self.agent.velocity * t * 
+                            np.array(
+                                [np.cos(np.deg2rad(agent_math_angle)),
+                                 np.sin(np.deg2rad(agent_math_angle))]
+                            )
+            )
+
+            new_obs_xy = (obstacle.xy + obstacle.velocity * t * 
+                        np.array(
+                                [np.cos(np.deg2rad(obs_math_angle)),
+                                 np.sin(np.deg2rad(obs_math_angle))]
+                            )
+            )
+
+            return np.linalg.norm(new_agent_xy - new_obs_xy)
+
+        result = opt.minimize_scalar(
+            distance,
+            bounds=(0, max(0.01, self.end_time - self.elapsed_time)),
+            method="bounded",
+        )
+        return result.fun, result.x     # time_at_closest_distance, closest_distance
 
     def log_rewards(self, reward, reward_name):
         """Logs each reward/penalty to the rewards_log dict for display in logs table and
@@ -573,115 +641,115 @@ class MyEnv(gym.Env):
 
         return self.state, reward, terminated, truncated, info
 
-    def external_update(self, sensor_data, processed_obs_list, new_goal_pos_longlat):
-        """Update the environment observation space externally with boat and 
-        obstacle data. Used in deployment."""
+    # def external_update(self, sensor_data, processed_obs_list, new_goal_pos_longlat):
+    #     """Update the environment observation space externally with boat and 
+    #     obstacle data. Used in deployment."""
 
-        self.goal_pos_xy = np.array(longlat_to_xy(new_goal_pos_longlat))
-        self.agent.xy = np.array(longlat_to_xy([sensor_data.long, sensor_data.lat]))
-        self.agent.velocity = np.linalg.norm(sensor_data.velocity)
-        self.agent.heading = sensor_data.heading
+    #     self.goal_pos_xy = np.array(longlat_to_xy(new_goal_pos_longlat))
+    #     self.agent.xy = np.array(longlat_to_xy([sensor_data.long, sensor_data.lat]))
+    #     self.agent.velocity = np.linalg.norm(sensor_data.velocity)
+    #     self.agent.heading = sensor_data.heading
     
-        self.agent_dist_to_goal = np.linalg.norm(self.agent.xy-new_goal_pos_longlat)
-        self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
+    #     self.agent_dist_to_goal = np.linalg.norm(self.agent.xy-new_goal_pos_longlat)
+    #     self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
 
-        # Update agent state
-        self.state['agent'] = np.array([
-                                        self.agent_dist_to_goal / self.max_dist_in_boundary,
-                                        self.agent_angle_to_goal / 180.0,
-                                        self.agent.velocity / self.max_velocity_ms,
-                                        self.agent.heading / 360.0])
+    #     # Update agent state
+    #     self.state['agent'] = np.array([
+    #                                     self.agent_dist_to_goal / self.max_dist_in_boundary,
+    #                                     self.agent_angle_to_goal / 180.0,
+    #                                     self.agent.velocity / self.max_velocity_ms,
+    #                                     self.agent.heading / 360.0])
 
-        # Update Ops env to fit the new goal pos and agent starting position
-        if not self.check_in_operational_environment(self.agent.xy):
-            self.update_ops_env(agent_start_pos_longlat= [sensor_data.long, sensor_data.lat], 
-                                new_goal_pos_longlat= new_goal_pos_longlat)
+    #     # Update Ops env to fit the new goal pos and agent starting position
+    #     if not self.check_in_operational_environment(self.agent.xy):
+    #         self.update_ops_env(agent_start_pos_longlat= [sensor_data.long, sensor_data.lat], 
+    #                             new_goal_pos_longlat= new_goal_pos_longlat)
 
-        # Process detected obstacles
-        for obs in processed_obs_list:
+    #     # Process detected obstacles
+    #     for obs in processed_obs_list:
             
-            obs_xy = obs.xy_abs
-            if np.nan in obs_xy:
-                continue
-            obs_velocity = np.linalg.norm(obs.velocity_abs)
-            obs_heading = np.rad2deg(np.arctan2(obs.velocity_abs[1], obs.velocity_abs[0]))
-            tracker_id = obs.id
+    #         obs_xy = obs.xy_abs
+    #         if np.nan in obs_xy:
+    #             continue
+    #         obs_velocity = np.linalg.norm(obs.velocity_abs)
+    #         obs_heading = np.rad2deg(np.arctan2(obs.velocity_abs[1], obs.velocity_abs[0]))
+    #         tracker_id = obs.id
             
-            if tracker_id not in self.obs_to_tracker_id_dict.values(): 
-                # Check if any ids are available
-                have_id = False
-                for i in range(1, self.max_spawned_obs+1):
-                    if self.obs_to_tracker_id_dict[i] == -1: 
-                        self.obs_to_tracker_id_dict[i] = tracker_id
-                        have_id = True
-                        break
+    #         if tracker_id not in self.obs_to_tracker_id_dict.values(): 
+    #             # Check if any ids are available
+    #             have_id = False
+    #             for i in range(1, self.max_spawned_obs+1):
+    #                 if self.obs_to_tracker_id_dict[i] == -1: 
+    #                     self.obs_to_tracker_id_dict[i] = tracker_id
+    #                     have_id = True
+    #                     break
             
-                if not have_id: continue # Skip the object if no ids availabele
+    #             if not have_id: continue # Skip the object if no ids availabele
             
-            # Get the corresponding obstacle id from the tracker id
-            for i in self.obs_to_tracker_id_dict.keys():
-                if self.obs_to_tracker_id_dict[i] == tracker_id:  
-                    obs_id = i
+    #         # Get the corresponding obstacle id from the tracker id
+    #         for i in self.obs_to_tracker_id_dict.keys():
+    #             if self.obs_to_tracker_id_dict[i] == tracker_id:  
+    #                 obs_id = i
             
-            # Determine obs safety radius
-            if obs.size <= 10: obs_size = "small"
-            elif obs.size <= 20: obs_size = "medium"
-            else: obs_size = "large"
+    #         # Determine obs safety radius
+    #         if obs.size <= 10: obs_size = "small"
+    #         elif obs.size <= 20: obs_size = "medium"
+    #         else: obs_size = "large"
             
-            # Check if obstacle exceeded ops env
-            if np.linalg.norm(obs_xy - self.ops_COG) > self.ops_bubble_radius:
-                self.state[f'obs{obs_id}_active'] = 0 # Deactivate obstacle
+    #         # Check if obstacle exceeded ops env
+    #         if np.linalg.norm(obs_xy - self.ops_COG) > self.ops_bubble_radius:
+    #             self.state[f'obs{obs_id}_active'] = 0 # Deactivate obstacle
 
-            self.state[f'obs{obs_id}_active'] = 1
-            self.state[f'obs{obs_id}'] = np.array([
-                                            np.linalg.norm(obs_xy-self.agent.xy) / self.max_dist_in_boundary,
-                                            self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
-                                            obs_velocity / self.max_obs_velocity_ms,
-                                            obs_heading / 360.0,
-                                            self.safety_radius_dict[obs_size], # Need to normalise
-                                            ])
-            self.state[f'obs{obs_id}_type'] = self.classify_obstacle(Obstacle(obs_xy, 
-                                                                                obs_heading, 
-                                                                                obs_velocity, 
-                                                                                self.safety_radius_dict[obs_size],
-                                                                                self.state[f'obs{obs_id}_active']))
+    #         self.state[f'obs{obs_id}_active'] = 1
+    #         self.state[f'obs{obs_id}'] = np.array([
+    #                                         np.linalg.norm(obs_xy-self.agent.xy) / self.max_dist_in_boundary,
+    #                                         self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy) / 180.0,
+    #                                         obs_velocity / self.max_obs_velocity_ms,
+    #                                         obs_heading / 360.0,
+    #                                         self.safety_radius_dict[obs_size], # Need to normalise
+    #                                         ])
+    #         self.state[f'obs{obs_id}_type'] = self.classify_obstacle(Obstacle(obs_xy, 
+    #                                                                             obs_heading, 
+    #                                                                             obs_velocity, 
+    #                                                                             self.safety_radius_dict[obs_size],
+    #                                                                             self.state[f'obs{obs_id}_active']))
             
-        for i in range(1, self.max_spawned_obs+1):
-            # Deactivate the obstacle if it is currently not detected
-            if self.obs_to_tracker_id_dict[i] not in [obs.id for obs in processed_obs_list]:      
-                self.state[f'obs{i}_active'] = 0 
+    #     for i in range(1, self.max_spawned_obs+1):
+    #         # Deactivate the obstacle if it is currently not detected
+    #         if self.obs_to_tracker_id_dict[i] not in [obs.id for obs in processed_obs_list]:      
+    #             self.state[f'obs{i}_active'] = 0 
             
-            # Track how long the obstacle ID has been inactive
-            if self.state[f'obs{i}_active'] == 0: self.obs_dead_time_list[i-1] += 1
+    #         # Track how long the obstacle ID has been inactive
+    #         if self.state[f'obs{i}_active'] == 0: self.obs_dead_time_list[i-1] += 1
 
-            # Reset the tracker
-            if self.state[f'obs{i}_active'] == 1: self.obs_dead_time_list[i-1] = 0
+    #         # Reset the tracker
+    #         if self.state[f'obs{i}_active'] == 1: self.obs_dead_time_list[i-1] = 0
                 
-            # Free the obstacle ID if it has not been active
-            if self.obs_dead_time_list[i-1] > 10: self.obs_to_tracker_id_dict[i-1] = -1
+    #         # Free the obstacle ID if it has not been active
+    #         if self.obs_dead_time_list[i-1] > 10: self.obs_to_tracker_id_dict[i-1] = -1
         
-        return self.state, self.agent_dist_to_goal
+    #     return self.state, self.agent_dist_to_goal
         
-    def update_ops_env(self, agent_start_pos_longlat, new_goal_pos_longlat):
-        """Update the ops env with the new agent start pos and goal pos. Used in deployment"""
+    # def update_ops_env(self, agent_start_pos_longlat, new_goal_pos_longlat):
+    #     """Update the ops env with the new agent start pos and goal pos. Used in deployment"""
         
-        self.goal_pos_xy = np.array(longlat_to_xy(new_goal_pos_longlat))
-        self.agent_start_pos_xy = np.array(longlat_to_xy(agent_start_pos_longlat))
-        self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
+    #     self.goal_pos_xy = np.array(longlat_to_xy(new_goal_pos_longlat))
+    #     self.agent_start_pos_xy = np.array(longlat_to_xy(agent_start_pos_longlat))
+    #     self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
         
-        self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
+    #     self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
 
-        self.grid_scale = self.ops_bubble_radius * 2 / self.grid_number  # metres
+    #     self.grid_scale = self.ops_bubble_radius * 2 / self.grid_number  # metres
         
-        self.closest_scale = min(
-            [1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
-            key=lambda x: abs(x - self.grid_scale),
-        )
+    #     self.closest_scale = min(
+    #         [1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+    #         key=lambda x: abs(x - self.grid_scale),
+    #     )
         
-        # Set end time for truncation
-        self.end_time = (
-            4 * self.ops_bubble_radius / self.cruising_speed_ms 
-        ) # seconds
+    #     # Set end time for truncation
+    #     self.end_time = (
+    #         4 * self.ops_bubble_radius / self.cruising_speed_ms 
+    #     ) # seconds
 
     # def get_next_state_and_update_agent(self, acc_ms2, yaw_rate_degs):
     #     "Returns self.state['agent'] after taking action"
@@ -742,170 +810,134 @@ class MyEnv(gym.Env):
 
     #     return angle_diff
     
-    def generate_obstacle(self):
-        """Generate an obstacle and return the obstacle's Obstacle object"""
+    # def generate_obstacle(self):
+    #     """Generate an obstacle and return the obstacle's Obstacle object"""
             
-        ### DAVID's EDIT START ###
-        obs_type = np.random.choice([1, 2, 3, 4])
+    #     ### DAVID's EDIT START ###
+    #     obs_type = np.random.choice([1, 2, 3, 4])
         
-        # Randomly determine obs velocity based on obstacle type
-        obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
+    #     # Randomly determine obs velocity based on obstacle type
+    #     obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
         
-        if self.obstacle_motion_type == 0: # Static obstacles
-            obs_velocity = 0
-        elif self.obstacle_motion_type == 2: # Mixed obstacle type
-            if np.random.choice([0, 1]) == 0: # Randomly decide if they are static or constant motion
-                obs_velocity = 0
+    #     if self.obstacle_motion_type == 0: # Static obstacles
+    #         obs_velocity = 0
+    #     elif self.obstacle_motion_type == 2: # Mixed obstacle type
+    #         if np.random.choice([0, 1]) == 0: # Randomly decide if they are static or constant motion
+    #             obs_velocity = 0
 
-        obs_size = np.random.choice(list(self.safety_radius_dict.keys())) # Randomly decide their size
-        obs_safety_radius = self.safety_radius_dict[obs_size]
+    #     obs_size = np.random.choice(list(self.safety_radius_dict.keys())) # Randomly decide their size
+    #     obs_safety_radius = self.safety_radius_dict[obs_size]
         
-        if obs_velocity == 0: # for static obstacles
-            obs_type = 0
+    #     if obs_velocity == 0: # for static obstacles
+    #         obs_type = 0
             
-            min_spawn_radius= self.detection_radius*0.5 
-            max_spawn_radius = self.detection_radius*0.8        # metres
-            spawn_radius = np.random.uniform(min_spawn_radius, max_spawn_radius)
+    #         min_spawn_radius= self.detection_radius*0.5 
+    #         max_spawn_radius = self.detection_radius*0.8        # metres
+    #         spawn_radius = np.random.uniform(min_spawn_radius, max_spawn_radius)
             
-            i = 0
-            while True: # Randomly select obstacle position until it is within the ops env
+    #         i = 0
+    #         while True: # Randomly select obstacle position until it is within the ops env
                 
-                i += 1
-                rel_heading = random_sample((-100, -20), (20, 100)) # Relative angle of obs to agent heading
-                abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
-                # Calculate obstacle spawn position
-                obs_xy = (self.agent.xy + spawn_radius * 
-                                np.array(
-                                    [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
-                                    np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
-                                ) 
-                )
-                # Check if position is within the bounds of the ops area
-                if np.all(obs_xy<=self.ops_top_right) and np.all(obs_xy>=self.ops_bottom_left):
-                    break
+    #             i += 1
+    #             rel_heading = random_sample((-100, -20), (20, 100)) # Relative angle of obs to agent heading
+    #             abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
+    #             # Calculate obstacle spawn position
+    #             obs_xy = (self.agent.xy + spawn_radius * 
+    #                             np.array(
+    #                                 [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
+    #                                 np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
+    #                             ) 
+    #             )
+    #             # Check if position is within the bounds of the ops area
+    #             if np.all(obs_xy<=self.ops_top_right) and np.all(obs_xy>=self.ops_bottom_left):
+    #                 break
                 
-                if i >= 10:
-                    break
+    #             if i >= 10:
+    #                 break
 
-            obs_heading = np.random.uniform(0,360) # Pick a random heading for the obstacle (not impt since obs not moving)                            
+    #         obs_heading = np.random.uniform(0,360) # Pick a random heading for the obstacle (not impt since obs not moving)                            
 
-        else:   
-            # Calculate collision point
-            if self.agent.velocity == 0:
-                time_to_collision = self.end_time - self.elapsed_time
-            else:
-                time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
+    #     else:   
+    #         # Calculate collision point
+    #         if self.agent.velocity == 0:
+    #             time_to_collision = self.end_time - self.elapsed_time
+    #         else:
+    #             time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
                 
-                time_upper_bound = time_to_rch_goal * 0.7
-                time_lower_bound = time_to_rch_goal * 0.4
+    #             time_upper_bound = time_to_rch_goal * 0.7
+    #             time_lower_bound = time_to_rch_goal * 0.4
                 
-                if time_upper_bound < 3.0:  # Handle case where agent is too close to goal
-                    time_to_collision = 3.0
-                else:
-                    time_to_collision = np.random.uniform(
-                        time_lower_bound, time_upper_bound
-                    )
+    #             if time_upper_bound < 3.0:  # Handle case where agent is too close to goal
+    #                 time_to_collision = 3.0
+    #             else:
+    #                 time_to_collision = np.random.uniform(
+    #                     time_lower_bound, time_upper_bound
+    #                 )
                     
-            collision_xy = (self.agent.xy + self.agent.velocity * time_to_collision * 
-                            np.array([
-                                    np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
-                                    np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))
-                                        ])
-                            )
+    #         collision_xy = (self.agent.xy + self.agent.velocity * time_to_collision * 
+    #                         np.array([
+    #                                 np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
+    #                                 np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))
+    #                                     ])
+    #                         )
 
-            # type 1 will subsequently offset starting position to avoid obstacle
-            if obs_type == 1:  # heading away
-                rel_heading = random_sample((10.0, 170.0), (190.0, 350.0))
-                # relative heading of obstacle from collision point
+    #         # type 1 will subsequently offset starting position to avoid obstacle
+    #         if obs_type == 1:  # heading away
+    #             rel_heading = random_sample((10.0, 170.0), (190.0, 350.0))
+    #             # relative heading of obstacle from collision point
 
-            elif obs_type == 2:  # head on
-                rel_heading = np.random.uniform(-10.0, 10.0)
-                # relative heading of obstacle from collision point
+    #         elif obs_type == 2:  # head on
+    #             rel_heading = np.random.uniform(-10.0, 10.0)
+    #             # relative heading of obstacle from collision point
 
-            elif obs_type == 3:  # crossing
-                rel_heading = random_sample((40, 112.5), (247.5, 320))
-                # relative heading of obstacle from collision point
+    #         elif obs_type == 3:  # crossing
+    #             rel_heading = random_sample((40, 112.5), (247.5, 320))
+    #             # relative heading of obstacle from collision point
 
-            elif obs_type == 4:  # overtaking
-                rel_heading = np.random.uniform(170, 190)
-                # relative heading of obstacle from collision point
+    #         elif obs_type == 4:  # overtaking
+    #             rel_heading = np.random.uniform(170, 190)
+    #             # relative heading of obstacle from collision point
                 
-                obs_velocity = np.random.uniform(
-                    self.agent.velocity*0.3, self.max_obs_velocity_ms
-                )
+    #             obs_velocity = np.random.uniform(
+    #                 self.agent.velocity*0.3, self.max_obs_velocity_ms
+    #             )
 
-            # common to all obstacles
-            abs_heading = (self.agent.heading + rel_heading) % 360  # ensure within 360 degrees
+    #         # common to all obstacles
+    #         abs_heading = (self.agent.heading + rel_heading) % 360  # ensure within 360 degrees
             
-            obs_distance = time_to_collision * obs_velocity  # from target point
+    #         obs_distance = time_to_collision * obs_velocity  # from target point
             
-            # calculate obstacle starting position
-            obs_xy = (collision_xy + obs_distance * 
-                    np.array(
-                        [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
-                        np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
-                        )
-                    )
+    #         # calculate obstacle starting position
+    #         obs_xy = (collision_xy + obs_distance * 
+    #                 np.array(
+    #                     [np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
+    #                     np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))]
+    #                     )
+    #                 )
 
-            obs_heading = (
-                math_angle_to_compass(
-                    np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))
-                ) % 360
-            )
+    #         obs_heading = (
+    #             math_angle_to_compass(
+    #                 np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))
+    #             ) % 360
+    #         )
             
-            if obs_type == 1:  # offset starting position to avoid obstacle
-                offset_heading = ( obs_heading + np.random.choice([90, -90])
-                ) % 360
-                obs_xy += (obs_safety_radius * 5 * 
-                    np.array(
-                        [np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
-                        np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))]
-                        )
-                    )
+    #         if obs_type == 1:  # offset starting position to avoid obstacle
+    #             offset_heading = ( obs_heading + np.random.choice([90, -90])
+    #             ) % 360
+    #             obs_xy += (obs_safety_radius * 5 * 
+    #                 np.array(
+    #                     [np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
+    #                     np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))]
+    #                     )
+    #                 )
 
-        return Obstacle(
-                    start_pos=obs_xy,
-                    start_heading=obs_heading,
-                    start_velocity=obs_velocity,
-                    safety_radius=obs_safety_radius,
-                    active=1
-                    )      
-                    
-    def classify_obstacle(self, obs: Obstacle):
-        "Classifies each obstacle based on its relative position to the agent, velocity and heading"
-            
-        if obs.active == 1:  # if obstacle active 
-            closest_distance, t = self.closest_distance_with_agent(obstacle=obs)
-
-            # Calculate xy coordinates of closest distance to obs
-            xy_closest_distance = (self.agent.xy + self.agent.velocity * t * 
-                                    np.array(
-                                        [np.cos(np.deg2rad(compass_to_math_angle(self.agent.heading))),
-                                        np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))]
-                                        )
-            )
-
-            # difference in heading between agent and obstacle
-            heading_diff = (obs.heading - self.agent.heading) % 360  # [0, 360]
-            heading_diff = min(heading_diff, 360-heading_diff) 
-            
-            if obs.velocity < self.min_obs_velocity_ms: # Assume the obstacle is stationary if velocity too small
-                obs_type = 0       # unclassified
-                obs.velocity = 0   # 0 m/s
-            elif closest_distance < obs.safety_radius*2 and self.check_in_operational_environment(xy_closest_distance):  
-                if 160 <= heading_diff < 200:
-                    obs_type = 2   # head on
-                elif 0 <= heading_diff < 20 or 340 <= heading_diff <= 360:
-                    obs_type = 4   # overtaking
-                else:
-                    obs_type =  3  # crossing
-
-            else: # if point of closest distance is not in ops env, unlikely to collide
-                obs_type = 1  # heading away
-        
-        else:
-            obs_type = 0 # unclassified
-        return obs_type
+    #     return Obstacle(
+    #                 start_pos=obs_xy,
+    #                 start_heading=obs_heading,
+    #                 start_velocity=obs_velocity,
+    #                 safety_radius=obs_safety_radius,
+    #                 active=1
+    #                 )
     
     # @staticmethod
     # def power_reward_func(pt1, pt2, cal_pt, concavity, power):
@@ -937,39 +969,6 @@ class MyEnv(gym.Env):
     #     else:
     #         raise TypeError('power must be an integer greater than 1')
     #     return reward
-    
-    def closest_distance_with_agent(self, obstacle: Obstacle):
-        """Returns the closest projected distance between the 
-        agent and an obstacle from the current time until end of episode
-
-        obstacle = Obstacle()"""
-
-        agent_math_angle = compass_to_math_angle(self.agent.heading)
-        obs_math_angle = compass_to_math_angle(obstacle.heading)
-
-        def distance(t):
-            new_agent_xy = (self.agent.xy + self.agent.velocity * t * 
-                            np.array(
-                                [np.cos(np.deg2rad(agent_math_angle)),
-                                 np.sin(np.deg2rad(agent_math_angle))]
-                            )
-            )
-
-            new_obs_xy = (obstacle.xy + obstacle.velocity * t * 
-                        np.array(
-                                [np.cos(np.deg2rad(obs_math_angle)),
-                                 np.sin(np.deg2rad(obs_math_angle))]
-                            )
-            )
-
-            return np.linalg.norm(new_agent_xy - new_obs_xy)
-
-        result = opt.minimize_scalar(
-            distance,
-            bounds=(0, max(0.01, self.end_time - self.elapsed_time)),
-            method="bounded",
-        )
-        return result.fun, result.x     # time_at_closest_distance, closest_distance
 
     def xy_to_pixel(self, xy):
         "Converts xy to pixel coordinates"
@@ -1527,5 +1526,3 @@ class MyEnv(gym.Env):
         # self.out.release()
         pygame.quit()
         cv2.destroyAllWindows()
-        
-# end of class
