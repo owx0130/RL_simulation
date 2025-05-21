@@ -140,37 +140,40 @@ class Obstacle():
 class MyEnv(gym.Env):
     def __init__(
         self,
+
+        # Ops environment related attributes
         agent_start_pos_longlat,
         goal_pos_longlat,
         heading_deg,
+        decision_rate,
+        ops_bubble_multiplier,
+        proximity_to_goal,
+        max_obstacles,
+        max_spawned_obs,
+        min_obs_detection_radius,
+        obstacle_motion_type,
+        safety_radius_dict,
+        rewards_weights_dict,
+
+        # Display related attributes
+        screen_height,
+        screen_width,
+        margins,
+        grid_number,
+        display_rate,
+        entity_size,
+        colours_dict,
+
+        # Agent related attributes
         max_velocity_knots,
         cruising_speed_knots,
         max_acc_ms2,
         max_yaw_rate_degs,
         detection_radius,
-        min_obs_detection_radius,
-        screen_height,
-        screen_width,
-        margins,
-        ops_bubble_multiplier,
-        grid_number,
-        decision_rate,
-        display_rate,
-        colours_dict,
-        max_obstacles,
-        safety_radius_dict,
-        rewards_weights_dict,
-        entity_size,
-        proximity_to_goal,
 
-        ### DAVID's ADDITION START ###
-        obstacle_motion_type,
-        max_spawned_obs = 0,
-        
         simulation_status = True,
         record = False,
-        video_name = "Current",
-        ### DAVID's ADDITION END ###
+        video_name = "Current"
     ):
         super(MyEnv, self).__init__()
         

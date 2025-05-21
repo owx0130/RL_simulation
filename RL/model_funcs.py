@@ -2,37 +2,34 @@ from stable_baselines3 import PPO
 from RL.params import *
 from RL.env import MyEnv
 
-def create_env(rec=False, vid_name="Current", sim_status=True):
+def create_env():
     return MyEnv(
         agent_start_pos_longlat,
         goal_pos_longlat,
         heading,
+        decision_rate,
+        ops_bubble_multiplier,
+        proximity_to_goal,
+        max_obstacles,
+        no_of_generated_obs,
+        min_obs_detection_radius,
+        obstacle_motion_type,
+        safety_radius_dict,
+        rewards_weights_dict,
+
+        screen_height,
+        screen_width,
+        margins,
+        grid_number,
+        display_rate,
+        entity_size,
+        colours_dict,
+
         max_velocity_knots,
         cruising_speed_knots,
         max_acc_ms2,
         max_yaw_rate_degs,
         detection_radius,
-        min_obs_detection_radius,
-        screen_height,
-        screen_width,
-        margins,
-        ops_bubble_multiplier,
-        grid_number,
-        decision_rate,
-        display_rate,
-        colours_dict,
-        max_obstacles,
-        safety_radius_dict,
-        rewards_weights_dict,
-        entity_size,
-        proximity_to_goal,
-
-        obstacle_motion_type,
-        max_spawned_obs=no_of_generated_obs,
-        
-        simulation_status=sim_status,
-        record=rec,
-        video_name=vid_name,
     )
 
 def custom_evaluate_model(

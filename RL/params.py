@@ -41,9 +41,8 @@ no_of_generated_obs = 0
 min_obs_detection_radius = 50  # metres (Unused)
 obstacle_motion_type = 0 # [0:static, 1:constant speed, 2:mixed]
 simulation_status = True 
-random_agent_start_pos = True # yet to be implemented properly (lack of time)
 
-# Penalty weightages
+# Reward/penalty weightages
 distance_change_weightage = 2
 angle_maintain_weightage = 1
 time_penalty_weightage = -1
@@ -51,7 +50,7 @@ exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 1000
 obs_collision_penalty_weightage = -100
 
-# COLREGs (Not Yet Used)
+# COLREGs related reward/penalty weightages (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard
 obs_crossing_starboard_penalty_weightage = 0  # turn to starboard
 obs_crossing_port_penalty_weightage = -1  # do not turn left
