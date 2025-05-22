@@ -78,7 +78,6 @@ def math_angle_to_compass(math_angle):
     "Converts mathematical angle to compass heading convention (angle from north)"
     return (90 - math_angle) % 360
 
-
 def heading_to_goal(agent_longlat, goal_longlat):
     "returns compass heading in degrees from agent to goal"
     x1 = longlat_to_xy(agent_longlat)[0]

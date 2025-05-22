@@ -31,7 +31,7 @@ from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
-TRAINING_TIMESTEPS = 5000
+TRAINING_TIMESTEPS = 100_000
 
 MODEL_NAME = "simple_nav"
 
