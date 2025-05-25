@@ -246,16 +246,9 @@ class MyEnv(gym.Env):
             self.left_column_width - 2 * self.margins,
             self.left_column_width - 2 * self.margins,
         )  # left, top, width, height
-                
+
         pygame.init()
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        pygame.display.set_caption("Maritime Environment")
-        self.clock = pygame.time.Clock()
-        
-        # Predefined fonts for pygame screen
-        self.large_font = pygame.font.SysFont("segoeui", 18, bold=True)
-        self.medium_font = pygame.font.SysFont("segoeui", 14, bold=True)
-        self.small_font = pygame.font.Font(None, 20)
 
         # Record video
         self.video_name = video_name
@@ -568,9 +561,9 @@ class MyEnv(gym.Env):
         angle_maintain_reward = angle_diff_cos * self.reward_weights_dict['angle_maintain_weightage']
         self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
         
-        # # Time penalty (want agent to be efficient)
-        # time_penalty = self.reward_weights_dict["time_penalty_weightage"]
-        # self.log_rewards(time_penalty, "time_penalty")
+        # Time penalty (want agent to be efficient)
+        time_penalty = self.reward_weights_dict["time_penalty_weightage"]
+        self.log_rewards(time_penalty, "time_penalty")
 
         # Penalize exceeding operations environment
         exceed_ops_env_penalty = self.reward_weights_dict["exceed_ops_env_penalty_weightage"] if not in_ops_env else 0
@@ -667,8 +660,8 @@ class MyEnv(gym.Env):
             else:
                 obstacle = Obstacle(
                     start_pos=self.agent_start_pos_xy,
-                    start_heading=self.initial_heading_degs,
-                    start_velocity=self.cruising_speed_ms,
+                    start_heading=0,
+                    start_velocity=0,
                     safety_radius=0,
                     isActive=0)
             
@@ -1007,6 +1000,14 @@ class MyEnv(gym.Env):
         )
 
     def render(self):
+
+        pygame.display.set_caption("Maritime Environment")
+        self.clock = pygame.time.Clock()
+        
+        # Predefined fonts for pygame screen
+        self.large_font = pygame.font.SysFont("segoeui", 18, bold=True)
+        self.medium_font = pygame.font.SysFont("segoeui", 14, bold=True)
+        self.small_font = pygame.font.Font(None, 20)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

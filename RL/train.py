@@ -45,7 +45,7 @@ if os.path.exists(MODEL_DIR):
 # NUM_ENVS = 4
 # vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 
-model = SAC("MultiInputPolicy", env=create_env())
+model = SAC("MultiInputPolicy", env=create_env(), buffer_size=50000)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
