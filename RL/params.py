@@ -37,18 +37,18 @@ decision_rate = 30  # Hz
 ops_bubble_multiplier = 0.75
 proximity_to_goal = 5  # metres
 max_obstacles = 10
-no_of_generated_obs = 3
+no_of_generated_obs = 0
 min_obs_detection_radius = 50  # metres (Unused)
 obstacle_motion_type = 0  # [0:static, 1:constant speed, 2:mixed]
 simulation_status = True 
 
 # Reward/penalty weightages
-distance_change_weightage = 1
+distance_change_weightage = 2
 angle_maintain_weightage = 1
-time_penalty_weightage = -1
+time_penalty_weightage = -0.3
 exceed_ops_env_penalty_weightage = -1000
-goal_reward_weightage = 2000
-obs_collision_penalty_weightage = -300
+goal_reward_weightage = 1000
+obs_collision_penalty_weightage = -150
 
 # COLREGs related reward/penalty weightages (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard

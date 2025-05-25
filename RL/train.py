@@ -27,7 +27,6 @@ import shutil
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 
-from hybrid_callback import HybridCallback
 from params import *
 from model_funcs import *
 
@@ -46,27 +45,14 @@ if os.path.exists(MODEL_DIR):
 # NUM_ENVS = 4
 # vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 
-model = SAC(
-    "MultiInputPolicy",
-    env=create_env(),
-    tensorboard_log=LOG_DIR)
+model = SAC("MultiInputPolicy", env=create_env())
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
 start_time = time.time()  # Start the timer
 
-model.learn(
-    total_timesteps=TRAINING_TIMESTEPS,
-    progress_bar=True,
-    callback=HybridCallback(
-        n_eval_episodes=3,
-        eval_freq=5000,
-        save_freq=5000,
-        save_path=MODEL_DIR,
-        log_path=LOG_DIR,
-        render=False
-    )
-)
+model.learn(total_timesteps=TRAINING_TIMESTEPS, progress_bar=True)
+model.save("RL_training/sac_model")
 
 end_time = time.time() # End the timer
 

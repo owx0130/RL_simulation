@@ -171,9 +171,9 @@ class MyEnv(gym.Env):
         max_yaw_rate_degs,
         detection_radius,
 
+        record,
         simulation_status = True,
-        record = False,
-        video_name = "Current"
+        video_name = "RL_training/Current"
     ):
         super(MyEnv, self).__init__()
         
@@ -271,9 +271,10 @@ class MyEnv(gym.Env):
         self.obs_to_tracker_id_dict = {}
         for i in range(1, self.max_obstacles+1):
             self.obs_to_tracker_id_dict[i] = -1
-    
+
     def generate_random_coords(self):
-        return np.random.uniform(high=500, size=2)
+        values = np.concatenate((np.arange(-200, 0, dtype=np.float64), np.arange(1, 201, dtype=np.float64)))
+        return np.random.choice(values, size=2, replace=False)
 
     def get_action_space(self):
         "Returns initialized action space."
@@ -284,11 +285,11 @@ class MyEnv(gym.Env):
         "Returns initialized observation space"
 
         # Agent observation space
-        # dist_to_goal, sin(angle_diff_to_goal), cos(angle_diff_to_goal), velocity, heading
+        # dist_to_goal, sin(angle_diff_to_goal), cos(angle_diff_to_goal), velocity
         observation_space_dict = {
             "agent": spaces.Box(
-                low=np.array([0, -1, -1, 0, 0]),
-                high=np.array([1, 1, 1, 1, 1]),
+                low=np.array([0, -1, -1, 0]),
+                high=np.array([1, 1, 1, 1]),
                 dtype=np.float64,
             )
         }
@@ -304,10 +305,10 @@ class MyEnv(gym.Env):
         
         # Initialise obstacle states
         for i in range(self.max_obstacles):
-            # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, heading, safety_radius
+            # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity
             observation_space_dict[f"obs{i}"] = spaces.Box(
-                low=np.array([0, -1, -1, 0, 0, 0]),
-                high=np.array([1, 1, 1, 1, 1, max(self.safety_radius_dict.values())]),
+                low=np.array([0, -1, -1, 0]),
+                high=np.array([1, 1, 1, 1]),
                 dtype=np.float64,
             )
         
@@ -467,7 +468,7 @@ class MyEnv(gym.Env):
 
             obs_heading = 0                      
 
-        else:   
+        else:
             # Calculate collision point
             if self.agent.velocity == 0:
                 time_to_collision = self.end_time - self.elapsed_time
@@ -611,10 +612,8 @@ class MyEnv(gym.Env):
             + distance_change_reward
             + angle_maintain_reward
             # + time_penalty
-            # + acc_penalty
-            # + direction_penalty
             + exceed_ops_env_penalty
-            + collision_penalty
+            # + collision_penalty
             # + sr_breach_penalty
             + goal_reward
         )
@@ -627,7 +626,7 @@ class MyEnv(gym.Env):
         
         # Initialise navigation variables (random initialisation)
         self.goal_pos_xy = self.generate_random_coords()
-        self.agent_start_pos_xy = np.array([250.0, 250.0])
+        self.agent_start_pos_xy = np.array([0.0, 0.0])
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
         self.initial_heading_degs = np.random.uniform(high=360)
 
@@ -646,15 +645,14 @@ class MyEnv(gym.Env):
         # Initialise agent state
         self.agent_dist_to_goal = np.linalg.norm(self.agent.xy - self.goal_pos_xy)
         self.agent_angle_to_goal = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, self.goal_pos_xy)
-        angle_diff_rad = np.radians(self.agent_angle_to_goal)   
+        angle_diff_rad = np.radians(self.agent_angle_to_goal)
 
         self.state = {
             'agent': np.array([
                 self.agent_dist_to_goal / self.max_dist_in_boundary,
                 np.sin(angle_diff_rad),
                 np.cos(angle_diff_rad),
-                self.agent.velocity / self.max_velocity_ms,
-                self.agent.heading / 360.0
+                self.agent.velocity / self.max_velocity_ms
             ]).astype(np.float64)
         }
 
@@ -685,9 +683,7 @@ class MyEnv(gym.Env):
                 np.linalg.norm(obstacle.xy - self.agent.xy) / self.max_dist_in_boundary,
                 np.sin(angle_diff_rad),
                 np.cos(angle_diff_rad),
-                obstacle.velocity / self.max_obs_velocity_ms,
-                obstacle.heading / 360.0,
-                obstacle.safety_radius
+                obstacle.velocity / self.max_obs_velocity_ms
             ]).astype(np.float64)
 
         self.state["obs_isActive"] = self.obs_isActive_list
@@ -724,8 +720,7 @@ class MyEnv(gym.Env):
             self.agent_dist_to_goal / self.max_dist_in_boundary,
             np.sin(angle_diff_rad),
             np.cos(angle_diff_rad),
-            self.agent.velocity / self.max_velocity_ms,
-            self.agent.heading / 360.0
+            self.agent.velocity / self.max_velocity_ms
         ]).astype(np.float64)
         
         # Check if agent still in ops env
@@ -765,9 +760,7 @@ class MyEnv(gym.Env):
                 np.linalg.norm(obstacle.xy - self.agent.xy) / self.max_dist_in_boundary,
                 np.sin(angle_diff_rad),
                 np.cos(angle_diff_rad),
-                obstacle.velocity / self.max_obs_velocity_ms,
-                obstacle.heading / 360.0,
-                obstacle.safety_radius
+                obstacle.velocity / self.max_obs_velocity_ms
             ]).astype(np.float64)
             
             obstacle_type = self.classify_obstacle(obstacle)

@@ -17,10 +17,10 @@ from params import *
 from model_funcs import *
 
 # Create the environment
-env = create_env()
+env = create_env(record=True)
 
 # Load the trained model
-model = SAC.load("RL_training/simple_nav/models/best.zip")
+model = SAC.load("RL_training/sac_model.zip")
 
 # Reset the environment and get the initial observation
 obs, _ = env.reset()
