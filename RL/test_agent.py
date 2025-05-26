@@ -17,7 +17,7 @@ from params import *
 from model_funcs import *
 
 # Create the environment
-env = create_env(record=True)
+env = create_env(difficulty=1)
 
 # Load the trained model
 model = SAC.load("RL_training/sac_model.zip")

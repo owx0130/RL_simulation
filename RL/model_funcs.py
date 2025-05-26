@@ -2,7 +2,7 @@ from stable_baselines3 import PPO
 from RL.params import *
 from RL.env import MyEnv
 
-def create_env(record=False):
+def create_env(record=False, difficulty=0):
     return MyEnv(
         agent_start_pos_longlat,
         goal_pos_longlat,
@@ -31,7 +31,8 @@ def create_env(record=False):
         max_yaw_rate_degs,
         detection_radius,
 
-        record
+        record,
+        difficulty
     )
 
 def custom_evaluate_model(

@@ -172,6 +172,7 @@ class MyEnv(gym.Env):
         detection_radius,
 
         record,
+        difficulty,
         simulation_status = True,
         video_name = "RL_training/Current"
     ):
@@ -247,9 +248,6 @@ class MyEnv(gym.Env):
             self.left_column_width - 2 * self.margins,
         )  # left, top, width, height
 
-        pygame.init()
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-
         # Record video
         self.video_name = video_name
         self.record = record
@@ -266,13 +264,21 @@ class MyEnv(gym.Env):
             self.obs_to_tracker_id_dict[i] = -1
             
         # Difficulty attribute for curriculum learning
-        self.difficulty = 0
+        self.difficulty = difficulty
+        
+        pygame.init()
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
 
     def set_difficulty(self, level):
         self.difficulty = level
 
     def generate_random_coords(self):
-        values = np.concatenate((np.arange(-200, 0, dtype=np.float64), np.arange(1, 201, dtype=np.float64)))
+        upper_bound = 300
+        lower_bound = 100
+        values = np.concatenate((
+            np.arange(-upper_bound, -lower_bound + 1, dtype=np.float64),
+            np.arange(lower_bound, upper_bound + 1, dtype=np.float64)
+        ))
         return np.random.choice(values, size=2, replace=False)
 
     def get_action_space(self):
@@ -425,9 +431,6 @@ class MyEnv(gym.Env):
         return result.fun, result.x     # time_at_closest_distance, closest_distance
 
     def generate_obstacle(self):
-
-        """Generate an obstacle and return the obstacle's Obstacle object"""            
-        obs_type =  np.random.choice([1, 2, 3, 4])
         
         # Randomly determine obs velocity based on obstacle type
         obs_velocity = np.random.uniform(self.min_obs_velocity_ms, self.max_obs_velocity_ms)
@@ -440,7 +443,6 @@ class MyEnv(gym.Env):
 
         obs_size = np.random.choice(list(self.safety_radius_dict.keys())) # Randomly decide their size
         obs_safety_radius = self.safety_radius_dict[obs_size]
-        
         if obs_velocity == 0: # for static obstacles
             obs_type = 0
             
@@ -448,9 +450,10 @@ class MyEnv(gym.Env):
             max_spawn_radius = self.ops_bubble_radius * 0.8
             spawn_radius = np.random.uniform(min_spawn_radius, max_spawn_radius)
             
-            # Randomly select obstacle position until it is within the ops env
-            while True:
-                
+            # Randomly select obstacle position until it is within the ops env and not too close to other obstacles
+            # Only done for a max of 100 attempts to prevent infinite loops
+            max_attempts = 500
+            for _ in range(max_attempts):
                 rel_heading = random_sample((-100, -20), (20, 100))  # Relative angle of obs to agent heading
                 abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
                 
@@ -460,14 +463,37 @@ class MyEnv(gym.Env):
                     np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))
                 ])
                 
+                isInBounds = False
                 # Check if position is within the bounds of the ops area
                 dist = np.linalg.norm(obs_xy - self.ops_COG)
                 if dist < self.ops_bubble_radius:
+                    isInBounds = True
+                
+                # Check that spawned obstacle is not too close to other obstacles
+                isTooClose = False
+                for existing_obs in self.obs_list:
+                    if np.linalg.norm(obs_xy - existing_obs.xy) < existing_obs.safety_radius:
+                        isTooClose = True
+                        break
+                
+                if not isTooClose and isInBounds:
                     break
+            
+            # Generate inactive obstacle if impossible to generate within the environment constraints
+            if isTooClose or not isInBounds:
+                return Obstacle(
+                    start_pos=np.array([0.0, 0.0]),
+                    start_heading=0,
+                    start_velocity=0,
+                    safety_radius=0,
+                    isActive=0
+                )
 
-            obs_heading = 0                      
+            obs_heading = 0
 
         else:
+            obs_type =  np.random.choice([1, 2, 3, 4])
+            
             # Calculate collision point
             if self.agent.velocity == 0:
                 time_to_collision = self.end_time - self.elapsed_time
@@ -588,6 +614,7 @@ class MyEnv(gym.Env):
                     collision_penalty += self.reward_weights_dict["obs_collision_penalty_weightage"]
             else:
                 self.collision_flags[i] = False
+            
             # if obs_dist_to_agent <= obs.safety_radius:
             #     sr_breach_penalty += self.power_reward_func(
             #         (1, 0), 
@@ -612,7 +639,7 @@ class MyEnv(gym.Env):
             + angle_maintain_reward
             # + time_penalty
             + exceed_ops_env_penalty
-            # + collision_penalty
+            + collision_penalty
             # + sr_breach_penalty
             + goal_reward
         )
@@ -622,7 +649,7 @@ class MyEnv(gym.Env):
         return total_reward
 
     def reset(self, seed=None, options=None):
-        
+                
         # Initialise navigation variables (random initialisation)
         self.goal_pos_xy = self.generate_random_coords()
         self.agent_start_pos_xy = np.array([0.0, 0.0])
@@ -633,7 +660,8 @@ class MyEnv(gym.Env):
         self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()
         self.max_dist_in_boundary = 2 * self.ops_bubble_radius
         self.end_time = 4 * self.ops_bubble_radius / self.cruising_speed_ms
-
+        self.elapsed_time = 0
+        
         # Initialise agent object
         self.agent = Agent(
             self.agent_start_pos_xy,
@@ -665,7 +693,7 @@ class MyEnv(gym.Env):
                 obstacle = self.generate_obstacle()
             else:
                 obstacle = Obstacle(
-                    start_pos=self.agent_start_pos_xy,
+                    start_pos=np.array([0.0, 0.0]),
                     start_heading=0,
                     start_velocity=0,
                     safety_radius=0,
@@ -699,7 +727,6 @@ class MyEnv(gym.Env):
             (self.closest_scale / self.max_dist_in_boundary) *
             (self.left_column_width - 2 * self.margins)
         )
-        
         return self.state, {}
     
     def step(self, action):
@@ -730,14 +757,14 @@ class MyEnv(gym.Env):
             goal_reached = True
         else:
             goal_reached = False
-
+        
         # Update obstacle state
         self.prev_obs_list = copy.deepcopy(self.obs_list)  # copy previous obs state (mainly for animation)
         for i in range(self.max_spawned_obs):
             obstacle = self.obs_list[i]
             obstacle.update(self.time_step)
 
-            # Check if obstacle is still detected by agent or exceeded ops env
+            # Check if obstacle is outside ops bubble
             if np.linalg.norm(obstacle.xy - self.ops_COG) > self.ops_bubble_radius:
                 obstacle = self.generate_obstacle()
                 self.obs_list[i] = obstacle
@@ -770,7 +797,7 @@ class MyEnv(gym.Env):
 
         # Update elapsed time
         self.elapsed_time += self.time_step
-
+        
         # Check if the episode is done
         terminated = goal_reached or not in_ops_env
         truncated = bool(self.elapsed_time >= self.end_time)  # Truncate if elapsed time exceeds end_time

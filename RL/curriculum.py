@@ -17,7 +17,7 @@ class CurriculumCallback(BaseCallback):
 
             if self.verbose > 0:
                 print(f"[CurriculumCallback] Updated difficulty to {new_difficulty} at step {self.num_timesteps}")
-            
+        
         return True
 
     def _calculate_difficulty(self, step):
