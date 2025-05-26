@@ -31,7 +31,7 @@ def create_env(record=False):
         max_yaw_rate_degs,
         detection_radius,
 
-        record,
+        record
     )
 
 def custom_evaluate_model(

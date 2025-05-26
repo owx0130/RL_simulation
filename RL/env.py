@@ -264,6 +264,12 @@ class MyEnv(gym.Env):
         self.obs_to_tracker_id_dict = {}
         for i in range(1, self.max_obstacles+1):
             self.obs_to_tracker_id_dict[i] = -1
+            
+        # Difficulty attribute for curriculum learning
+        self.difficulty = 0
+
+    def set_difficulty(self, level):
+        self.difficulty = level
 
     def generate_random_coords(self):
         values = np.concatenate((np.arange(-200, 0, dtype=np.float64), np.arange(1, 201, dtype=np.float64)))
@@ -655,7 +661,7 @@ class MyEnv(gym.Env):
         self.obs_type_list = []
         for i in range(self.max_obstacles):
             # Only activate the first "max_spawned_obs" obstacles
-            if i < self.max_spawned_obs:
+            if i < self.max_spawned_obs and self.difficulty >= 1:
                 obstacle = self.generate_obstacle()
             else:
                 obstacle = Obstacle(
