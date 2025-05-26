@@ -48,7 +48,7 @@ angle_maintain_weightage = 1
 time_penalty_weightage = -0.5
 exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 1000
-obs_collision_penalty_weightage = -150
+obs_collision_penalty_weightage = -200
 
 # COLREGs related reward/penalty weightages (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard

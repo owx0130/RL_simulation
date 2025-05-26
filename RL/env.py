@@ -580,10 +580,10 @@ class MyEnv(gym.Env):
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
  
-        # Reward maintaining heading towards the goal, penalize for heading away from it
-        angle_diff_cos = np.cos(np.radians(self.agent_angle_to_goal))
-        angle_maintain_reward = angle_diff_cos * self.reward_weights_dict['angle_maintain_weightage']
-        self.log_rewards(angle_maintain_reward, "angle_maintain_reward")    
+        # # Reward maintaining heading towards the goal, penalize for heading away from it
+        # angle_diff_cos = np.cos(np.radians(self.agent_angle_to_goal))
+        # angle_maintain_reward = angle_diff_cos * self.reward_weights_dict['angle_maintain_weightage']
+        # self.log_rewards(angle_maintain_reward, "angle_maintain_reward")
         
         # Time penalty (want agent to be efficient)
         time_penalty = self.reward_weights_dict["time_penalty_weightage"]
@@ -628,7 +628,7 @@ class MyEnv(gym.Env):
         # Final reward
         total_reward = (
             + distance_change_reward
-            + angle_maintain_reward
+            # + angle_maintain_reward
             # + time_penalty
             + exceed_ops_env_penalty
             + collision_penalty

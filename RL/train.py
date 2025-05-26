@@ -31,8 +31,8 @@ from params import *
 from model_funcs import *
 from curriculum import CurriculumCallback
 
-TRAINING_TIMESTEPS = 200_000
-UPDATE_FREQ = 100_000
+TRAINING_TIMESTEPS = 300_000
+UPDATE_FREQ = TRAINING_TIMESTEPS / 2
 
 MODEL_NAME = "simple_nav"
 
