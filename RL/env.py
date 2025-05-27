@@ -151,7 +151,6 @@ class MyEnv(gym.Env):
         max_obstacles,
         max_spawned_obs,
         min_obs_detection_radius,
-        obstacle_motion_type,
         safety_radius_dict,
         rewards_weights_dict,
 
@@ -218,7 +217,7 @@ class MyEnv(gym.Env):
         self.elapsed_time = 0
         self.rewards_log = self.prev_rewards_log = {}
         self.collision_flags = [False] * self.max_obstacles
-        self.obstacle_motion_type = obstacle_motion_type
+        self.obstacle_motion_type = 0
         self.simulation = simulation_status
         
         # Screen properties
@@ -355,7 +354,7 @@ class MyEnv(gym.Env):
         
         return midpoint, ops_bubble_radius, min_xy, max_xy, max_ops_distance
 
-    def check_in_operational_environment(self, pos_xy:np.ndarray):
+    def check_in_operational_environment(self, pos_xy):
         "Checks if a pos_xy point is in the operational environment"
         # distance of point from centre of ops environment
         dist_to_centre = np.linalg.norm(pos_xy - self.ops_COG)
@@ -427,6 +426,33 @@ class MyEnv(gym.Env):
 
         return result.fun, result.x  # time_at_closest_distance, closest_distance
 
+    def get_list_of_collided_obstacles(self):
+        collided_obs = []
+        for i in range(len(self.obs_list)):
+            for j in range(i + 1, len(self.obs_list)):
+                obs1 = self.obs_list[i]
+                obs2 = self.obs_list[j]
+
+                # Only calculate collision if both obstacles are active
+                if obs1.isActive and obs2.isActive:
+                    larger_radius = max(obs1.safety_radius, obs2.safety_radius)
+                    distance = np.linalg.norm(obs1.xy - obs2.xy)
+                    if distance < 0.2 * larger_radius:
+                        collided_obs.append(i)
+                        collided_obs.append(j)
+
+        return collided_obs
+
+    def check_if_obstacles_too_close(self, obs_xy, obs_safety_radius):
+        isTooClose = False
+        for existing_obs in self.obs_list:
+            larger_radius = max(existing_obs.safety_radius, obs_safety_radius)
+            if np.linalg.norm(obs_xy - existing_obs.xy) < larger_radius:
+                isTooClose = True
+                break
+        
+        return isTooClose
+
     def generate_obstacle(self):
 
         # Determine obstacle velocity based on motion type
@@ -441,7 +467,7 @@ class MyEnv(gym.Env):
         obs_size = np.random.choice(list(self.safety_radius_dict.keys()))
         obs_safety_radius = self.safety_radius_dict[obs_size]
 
-        # Generate static obstacles
+        # Generate static obstacle
         if obs_velocity == 0:
             obs_heading = 0
 
@@ -453,7 +479,7 @@ class MyEnv(gym.Env):
             # Only done for a max of 500 attempts to prevent infinite loops
             max_attempts = 500
             for _ in range(max_attempts):
-                rel_heading = random_sample((-100, -20), (20, 100))  # Relative angle of obs to agent heading
+                rel_heading = np.random.uniform(-180, 180)  # Relative angle of obs to agent heading
                 abs_heading = (self.agent.heading + rel_heading) % 360  # Ensure within 360 degrees    
                 
                 # Calculate obstacle spawn position
@@ -463,18 +489,10 @@ class MyEnv(gym.Env):
                 ])
                 
                 # Check if position is within the bounds of the ops area
-                isInBounds = False
-                dist = np.linalg.norm(obs_xy - self.ops_COG)
-                if dist < self.ops_bubble_radius:
-                    isInBounds = True
+                isInBounds = self.check_in_operational_environment(obs_xy)
                 
                 # Check that spawned obstacle is not too close to other obstacles
-                isTooClose = False
-                for existing_obs in self.obs_list:
-                    larger_radius = max(existing_obs.safety_radius, obs_safety_radius)
-                    if np.linalg.norm(obs_xy - existing_obs.xy) < larger_radius:
-                        isTooClose = True
-                        break
+                isTooClose = self.check_if_obstacles_too_close(obs_xy, obs_safety_radius)
                 
                 if not isTooClose and isInBounds:
                     break
@@ -485,15 +503,12 @@ class MyEnv(gym.Env):
             else:
                 isActive = True
         else:
-            obs_type =  np.random.choice([1, 2, 3, 4])
-            isActive = True
 
             # Calculate collision point
             if self.agent.velocity == 0:
                 time_to_collision = self.end_time - self.elapsed_time
             else:
                 time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
-                
                 time_upper_bound = time_to_rch_goal * 0.7
                 time_lower_bound = time_to_rch_goal * 0.4
                 
@@ -507,47 +522,57 @@ class MyEnv(gym.Env):
                 np.sin(np.deg2rad(compass_to_math_angle(self.agent.heading)))
             ])
 
-            # type 1 will subsequently offset starting position to avoid obstacle
-            if obs_type == 1:  # heading away
-                rel_heading = random_sample((10.0, 170.0), (190.0, 350.0))
-                # relative heading of obstacle from collision point
+            # Randomly select obstacle position until it is not too close to other obstacles
+            # Only done for a max of 500 attempts to prevent infinite loops
+            max_attempts = 500
+            for _ in range(max_attempts):
+                obs_type = np.random.choice([1, 2, 3, 4])
 
-            elif obs_type == 2:  # head on
-                rel_heading = np.random.uniform(-10.0, 10.0)
-                # relative heading of obstacle from collision point
+                # type 1 will subsequently offset starting position to avoid obstacle
+                if obs_type == 1:  # heading away
+                    rel_heading_to_collision_pt = random_sample((10.0, 170.0), (190.0, 350.0))
+                elif obs_type == 2:  # head on
+                    rel_heading_to_collision_pt = np.random.uniform(-10.0, 10.0)
+                elif obs_type == 3:  # crossing
+                    rel_heading_to_collision_pt = random_sample((40, 112.5), (247.5, 320))
+                elif obs_type == 4:  # overtaking
+                    rel_heading_to_collision_pt = np.random.uniform(170, 190)
+                    obs_velocity = np.random.uniform(self.agent.velocity * 0.3, self.max_obs_velocity_ms)
 
-            elif obs_type == 3:  # crossing
-                rel_heading = random_sample((40, 112.5), (247.5, 320))
-                # relative heading of obstacle from collision point
-
-            elif obs_type == 4:  # overtaking
-                rel_heading = np.random.uniform(170, 190)
-                # relative heading of obstacle from collision point
+                abs_heading = (self.agent.heading + rel_heading_to_collision_pt) % 360
+                obs_distance = time_to_collision * obs_velocity  # from target point
                 
-                obs_velocity = np.random.uniform(self.agent.velocity * 0.3, self.max_obs_velocity_ms)
-
-            # common to all obstacles
-            abs_heading = (self.agent.heading + rel_heading) % 360  # ensure within 360 degrees
-            
-            obs_distance = time_to_collision * obs_velocity  # from target point
-            
-            # calculate obstacle starting position
-            obs_xy = collision_xy + obs_distance * np.array([
-                np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
-                np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))
-            ])
-
-            obs_heading = (math_angle_to_compass(
-                np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))) % 360
-            )
-            
-            if obs_type == 1:  # offset starting position to avoid obstacle
-                offset_heading = (obs_heading + np.random.choice([90, -90])) % 360
-                obs_xy += obs_safety_radius * 5 * np.array([
-                    np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
-                    np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))
+                # Calculate obstacle starting position and heading
+                obs_xy = collision_xy + obs_distance * np.array([
+                    np.cos(np.deg2rad(compass_to_math_angle(abs_heading))),
+                    np.sin(np.deg2rad(compass_to_math_angle(abs_heading)))
                 ])
+                obs_heading = (math_angle_to_compass(
+                    np.degrees(np.arctan2(collision_xy[1] - obs_xy[1], collision_xy[0] - obs_xy[0]))) % 360
+                )
 
+                if obs_type == 1:  # offset starting position to avoid obstacle
+                    offset_heading = (obs_heading + np.random.choice([90, -90])) % 360
+                    obs_xy += obs_safety_radius * 3 * np.array([
+                        np.cos(np.deg2rad(compass_to_math_angle(offset_heading))),
+                        np.sin(np.deg2rad(compass_to_math_angle(offset_heading)))
+                    ])
+
+                # Check if position is within the bounds of the ops area
+                isInBounds = self.check_in_operational_environment(obs_xy)
+                
+                # Check that spawned obstacle is not too close to other obstacles
+                isTooClose = self.check_if_obstacles_too_close(obs_xy, obs_safety_radius)
+                
+                if not isTooClose and isInBounds:
+                    break
+
+            # Generate inactive obstacle if impossible to generate within the environment constraints
+            if isTooClose or not isInBounds:
+                isActive = False
+            else:
+                isActive = True
+        
         return Obstacle(
             start_pos=obs_xy,
             start_heading=obs_heading,
@@ -597,26 +622,29 @@ class MyEnv(gym.Env):
         collision_penalty = sr_breach_penalty = 0
         for i in range(self.max_spawned_obs):
             obs = self.obs_list[i]
-            obs_dist_to_agent = np.linalg.norm(obs.xy-self.agent.xy)
-            
-            # Penalize agent for colliding with obstacles
-            if obs_dist_to_agent <= 0.2 * obs.safety_radius:
-                if self.collision_flags[i] == False:
-                    self.collision_flags[i] = True
-                    collision_penalty += self.reward_weights_dict["obs_collision_penalty_weightage"]
-            else:
-                self.collision_flags[i] = False
-            
-            # if obs_dist_to_agent <= obs.safety_radius:
-            #     sr_breach_penalty += self.power_reward_func(
-            #         (1, 0), 
-            #         (0.2, self.reward_weights_dict["obs_SR_breach_penalty_weightage"]), 
-            #         max(obs_dist_to_agent/obs.safety_radius, 0.2),
-            #         'down', 
-            #         1
-            #     )
-        self.log_rewards(collision_penalty, "collision_penalty") 
-        # self.log_rewards(sr_breach_penalty, "sr_breach_penalty") 
+
+            # Penalize for collision with active obstacles
+            if obs.isActive:
+                obs_dist_to_agent = np.linalg.norm(obs.xy-self.agent.xy)
+                
+                # Penalize agent for colliding with obstacles
+                if obs_dist_to_agent <= 0.2 * obs.safety_radius:
+                    if self.collision_flags[i] == False:
+                        self.collision_flags[i] = True
+                        collision_penalty += self.reward_weights_dict["obs_collision_penalty_weightage"]
+                else:
+                    self.collision_flags[i] = False
+                
+                # if obs_dist_to_agent <= obs.safety_radius:
+                #     sr_breach_penalty += self.power_reward_func(
+                #         (1, 0), 
+                #         (0.2, self.reward_weights_dict["obs_SR_breach_penalty_weightage"]), 
+                #         max(obs_dist_to_agent/obs.safety_radius, 0.2),
+                #         'down', 
+                #         1
+                #     )
+        self.log_rewards(collision_penalty, "collision_penalty")
+        # self.log_rewards(sr_breach_penalty, "sr_breach_penalty")
 
         # Reward for reaching goal
         goal_reward = self.reward_weights_dict["goal_reward_weightage"] if goal_reached else 0
@@ -627,21 +655,24 @@ class MyEnv(gym.Env):
 
         # Final reward
         total_reward = (
-            + distance_change_reward
-            # + angle_maintain_reward
-            # + time_penalty
-            + exceed_ops_env_penalty
-            + collision_penalty
-            # + sr_breach_penalty
-            + goal_reward
+            distance_change_reward +
+            # angle_maintain_reward +
+            time_penalty +
+            exceed_ops_env_penalty +
+            collision_penalty +
+            # sr_breach_penalty +
+            goal_reward
         )
-
         self.log_rewards(total_reward, "total_reward")
 
         return total_reward
 
     def reset(self, seed=None, options=None):
-                
+        
+        # Update obstacle movement type based on difficulty of environment
+        if self.difficulty == 2:
+            self.obstacle_motion_type = 1
+
         # Initialise navigation variables (random initialisation)
         self.goal_pos_xy = self.generate_random_coords()
         self.agent_start_pos_xy = np.array([0.0, 0.0])
@@ -681,6 +712,7 @@ class MyEnv(gym.Env):
         self.obs_isActive_list = []
         self.obs_type_list = []
         for i in range(self.max_obstacles):
+
             # Only activate the first "max_spawned_obs" obstacles
             if i < self.max_spawned_obs and self.difficulty >= 1:
                 obstacle = self.generate_obstacle()
@@ -697,6 +729,7 @@ class MyEnv(gym.Env):
             self.obs_isActive_list.append(obstacle.isActive)
             self.obs_type_list.append(0)
             
+            # Compute angle diff between agent and obstacle
             obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
             angle_diff_rad = np.radians(obstacle_agent_angle_diff)
 
@@ -759,20 +792,11 @@ class MyEnv(gym.Env):
             obstacle.update(self.time_step)
 
             # Check if obstacle is outside ops bubble
-            if np.linalg.norm(obstacle.xy - self.ops_COG) > self.ops_bubble_radius:
+            if not self.check_in_operational_environment(obstacle.xy):
                 obstacle = self.generate_obstacle()
                 self.obs_list[i] = obstacle
 
-            # # Check if obstacle is still detected by agent or exceeded ops env
-            # if (np.linalg.norm(obs.xy - self.agent.xy) > self.detection_radius or 
-            #     np.linalg.norm(obs.xy - self.ops_COG) > self.ops_bubble_radius):
-            #     obs.active = 0  # Deactivate obstacle
-
-            # # Randomly decide whether to generate new obstacle
-            # if obs.active == 0 and True:
-            #     obs = self.generate_obstacle()
-            #     self.obs_list[i - 1] = obs
-
+            # Compute angle diff between agent and obstacle
             obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
             angle_diff_rad = np.radians(obstacle_agent_angle_diff)
 
@@ -785,7 +809,10 @@ class MyEnv(gym.Env):
             
             obstacle_type = self.classify_obstacle(obstacle)
             self.state["obs_type"][i] = obstacle_type
-            
+        
+        # Check if obstacles collided with each other
+        collided_obs = self.get_list_of_collided_obstacles()
+
         # Get reward    
         reward = self.get_reward(in_ops_env, goal_reached)
 

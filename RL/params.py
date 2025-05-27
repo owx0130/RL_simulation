@@ -40,15 +40,15 @@ max_obstacles = 10
 no_of_generated_obs = 5
 min_obs_detection_radius = 50  # metres (Unused)
 obstacle_motion_type = 0  # [0:static, 1:constant speed, 2:mixed]
-simulation_status = True 
+simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 2
 angle_maintain_weightage = 1
-time_penalty_weightage = -0.5
+time_penalty_weightage = -0.3
 exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 1000
-obs_collision_penalty_weightage = -200
+obs_collision_penalty_weightage = -500
 
 # COLREGs related reward/penalty weightages (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard

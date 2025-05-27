@@ -13,7 +13,6 @@ def create_env(record=False, difficulty=0):
         max_obstacles,
         no_of_generated_obs,
         min_obs_detection_radius,
-        obstacle_motion_type,
         safety_radius_dict,
         rewards_weights_dict,
 
