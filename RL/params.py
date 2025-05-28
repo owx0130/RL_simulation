@@ -14,7 +14,7 @@ from RL.reference_values import *
 from RL.helper_funcs import *
 
 # Display (square screen)
-screen_height = 800
+screen_height = 700
 right_column_width = 300
 screen_width = screen_height + right_column_width
 margins = 48
@@ -45,7 +45,7 @@ simulation_status = True
 # Reward/penalty weightages
 distance_change_weightage = 2
 angle_maintain_weightage = 1
-time_penalty_weightage = -0.2
+time_penalty_weightage = -0.3
 exceed_ops_env_penalty_weightage = -2000
 goal_reward_weightage = 1000
 obs_collision_penalty_weightage = -600
