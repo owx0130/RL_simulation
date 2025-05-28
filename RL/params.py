@@ -44,11 +44,11 @@ simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 2
-angle_maintain_weightage = 1
+angle_maintain_weightage = 0.7
 time_penalty_weightage = -0.3
 exceed_ops_env_penalty_weightage = -2000
 goal_reward_weightage = 1000
-obs_collision_penalty_weightage = -600
+obs_collision_penalty_weightage = -1000
 
 # COLREGs related reward/penalty weightages (Not Yet Used)
 obs_head_on_penalty_weightage = -5  # turn to starboard

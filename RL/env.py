@@ -581,6 +581,20 @@ class MyEnv(gym.Env):
             isActive=isActive
         )
 
+    def get_obstacle_state(self, obstacle):
+        
+        # Compute angle diff between agent and obstacle
+        obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
+        angle_diff_rad = np.radians(obstacle_agent_angle_diff)
+        
+        return np.array([
+            np.linalg.norm(obstacle.xy - self.agent.xy) / self.max_dist_in_boundary,
+            np.sin(angle_diff_rad),
+            np.cos(angle_diff_rad),
+            obstacle.velocity / self.max_obs_velocity_ms
+        ]).astype(np.float64)
+        
+
     def log_rewards(self, reward, reward_name):
         """Logs each reward/penalty to the rewards_log dict for display in logs table and
         analysis purposes. (Not an essential function)"""
@@ -728,17 +742,8 @@ class MyEnv(gym.Env):
             self.obs_list.append(obstacle)
             self.obs_isActive_list.append(obstacle.isActive)
             self.obs_type_list.append(0)
-            
-            # Compute angle diff between agent and obstacle
-            obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
-            angle_diff_rad = np.radians(obstacle_agent_angle_diff)
 
-            self.state[f"obs{i}"] = np.array([
-                np.linalg.norm(obstacle.xy - self.agent.xy) / self.max_dist_in_boundary,
-                np.sin(angle_diff_rad),
-                np.cos(angle_diff_rad),
-                obstacle.velocity / self.max_obs_velocity_ms
-            ]).astype(np.float64)
+            self.state[f"obs{i}"] = self.get_obstacle_state(obstacle)
 
         self.state["obs_isActive"] = self.obs_isActive_list
         self.state["obs_type"] = self.obs_type_list
@@ -793,25 +798,22 @@ class MyEnv(gym.Env):
 
             # Check if obstacle is outside ops bubble
             if not self.check_in_operational_environment(obstacle.xy):
-                obstacle = self.generate_obstacle()
-                self.obs_list[i] = obstacle
+                new_obstacle = self.generate_obstacle()
+                self.obs_list[i] = new_obstacle
 
-            # Compute angle diff between agent and obstacle
-            obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
-            angle_diff_rad = np.radians(obstacle_agent_angle_diff)
-
-            self.state[f'obs{i}'] = np.array([
-                np.linalg.norm(obstacle.xy - self.agent.xy) / self.max_dist_in_boundary,
-                np.sin(angle_diff_rad),
-                np.cos(angle_diff_rad),
-                obstacle.velocity / self.max_obs_velocity_ms
-            ]).astype(np.float64)
-            
             obstacle_type = self.classify_obstacle(obstacle)
+            self.state[f'obs{i}'] = self.get_obstacle_state(obstacle)            
             self.state["obs_type"][i] = obstacle_type
         
-        # Check if obstacles collided with each other
+        # Check if obstacles collided with each other, generate new obstacles to replace collided ones
         collided_obs = self.get_list_of_collided_obstacles()
+        for obs in collided_obs:
+            new_obstacle = self.generate_obstacle()
+            self.obs_list[obs] = new_obstacle
+            
+            obstacle_type = self.classify_obstacle(obstacle)
+            self.state[f'obs{i}'] = self.get_obstacle_state(obstacle)            
+            self.state["obs_type"][i] = obstacle_type
 
         # Get reward    
         reward = self.get_reward(in_ops_env, goal_reached)
