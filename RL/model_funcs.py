@@ -11,8 +11,6 @@ def create_env(record=False, difficulty=0):
         ops_bubble_multiplier,
         proximity_to_goal,
         max_obstacles,
-        no_of_generated_obs,
-        min_obs_detection_radius,
         safety_radius_dict,
         rewards_weights_dict,
 

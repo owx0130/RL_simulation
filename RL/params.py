@@ -14,7 +14,7 @@ from RL.reference_values import *
 from RL.helper_funcs import *
 
 # Display (square screen)
-screen_height = 700
+screen_height = 800
 right_column_width = 300
 screen_width = screen_height + right_column_width
 margins = 48
@@ -37,37 +37,34 @@ decision_rate = 30  # Hz
 ops_bubble_multiplier = 0.75
 proximity_to_goal = 5  # metres
 max_obstacles = 10
-no_of_generated_obs = 5
-min_obs_detection_radius = 50  # metres (Unused)
-obstacle_motion_type = 0  # [0:static, 1:constant speed, 2:mixed]
 simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 2
-angle_maintain_weightage = 0.7
-time_penalty_weightage = -0.3
-exceed_ops_env_penalty_weightage = -2000
-goal_reward_weightage = 1000
-obs_collision_penalty_weightage = -1000
+time_penalty_weightage = -0.15
+exceed_ops_env_penalty_weightage = -400
+goal_reward_weightage = 400
+obs_collision_penalty_weightage = -400
+too_close_to_obstacle_penalty_weightage = -2
 
-# COLREGs related reward/penalty weightages (Not Yet Used)
-obs_head_on_penalty_weightage = -5  # turn to starboard
+# COLREGs related reward/penalty weightages
+obs_head_on_weightage = 1
+obs_overtaking_weightage = 1
 obs_crossing_starboard_penalty_weightage = 0  # turn to starboard
 obs_crossing_port_penalty_weightage = -1  # do not turn left
 obs_crossing_port_direction_change_penalty_weightage = -1  # continue on current course
-obs_overtaking_penalty_weightage = -1  # do not cross in front of obstacle
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
-    "angle_maintain_weightage": angle_maintain_weightage, 
     "time_penalty_weightage": time_penalty_weightage,
     "exceed_ops_env_penalty_weightage": exceed_ops_env_penalty_weightage,
     "goal_reward_weightage": goal_reward_weightage,
     "obs_collision_penalty_weightage": obs_collision_penalty_weightage,
-    "obs_head_on_penalty_weightage": obs_head_on_penalty_weightage,
+    "too_close_to_obstacle_penalty_weightage": too_close_to_obstacle_penalty_weightage,
+    "obs_head_on_weightage": obs_head_on_weightage,
+    "obs_overtaking_weightage": obs_overtaking_weightage,
     "obs_crossing_starboard_penalty_weightage": obs_crossing_starboard_penalty_weightage,
     "obs_crossing_port_penalty_weightage": obs_crossing_port_penalty_weightage,
-    "obs_overtaking_penalty_weightage": obs_overtaking_penalty_weightage,
 }
 
 # Agent properties

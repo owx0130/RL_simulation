@@ -31,8 +31,7 @@ from params import *
 from model_funcs import *
 from curriculum import CurriculumCallback
 
-TRAINING_TIMESTEPS = 200_000
-UPDATE_FREQ = TRAINING_TIMESTEPS / 2
+TRAINING_TIMESTEPS = 600_000
 
 MODEL_NAME = "simple_nav"
 
@@ -55,7 +54,7 @@ start_time = time.time()  # Start the timer
 model.learn(
     total_timesteps=TRAINING_TIMESTEPS,
     progress_bar=True,
-    callback=CurriculumCallback(update_freq=UPDATE_FREQ)
+    callback=CurriculumCallback(TRAINING_TIMESTEPS)
 )
 model.save("RL_training/sac_model")
 
