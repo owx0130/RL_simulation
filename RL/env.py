@@ -301,11 +301,11 @@ class MyEnv(gym.Env):
         observation_space_dict["is_active"] = spaces.MultiBinary(self.max_obstacles)
 
         # Obstacle observation space
-        # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity
+        # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, sin(heading_diff), cos(heading_diff)
         observation_space_dict["obstacles"] = spaces.Box(
-            low=np.tile(np.array([0, -1, -1, 0]), (self.max_obstacles, 1)),
-            high=np.tile(np.array([1, 1, 1, 1]), (self.max_obstacles, 1)),
-            shape=(self.max_obstacles, 4),
+            low=np.tile(np.array([0, -1, -1, 0, -1, -1]), (self.max_obstacles, 1)),
+            high=np.tile(np.array([1, 1, 1, 1, 1, 1]), (self.max_obstacles, 1)),
+            shape=(self.max_obstacles, 6),
             dtype=np.float32
         )
         
@@ -631,12 +631,16 @@ class MyEnv(gym.Env):
         agent_dist_to_obstacle = np.linalg.norm(obstacle.xy - self.agent.xy)
         obstacle_agent_angle_diff = self.get_signed_angle_diff(self.agent.xy, self.agent.heading, obstacle.xy)
         angle_diff_rad = np.radians(obstacle_agent_angle_diff)
-
+        heading_diff = (obstacle.heading - self.agent.heading + 180) % 360 - 180
+        heading_diff_rad = np.radians(heading_diff)
+        
         return np.array([
             agent_dist_to_obstacle / self.max_dist_in_boundary,
             np.sin(angle_diff_rad),
             np.cos(angle_diff_rad),
-            obstacle.velocity / self.max_obs_velocity_ms
+            obstacle.velocity / self.max_obs_velocity_ms,
+            np.sin(heading_diff_rad),
+            np.cos(heading_diff_rad)
         ]).astype(np.float32)
         
 

@@ -14,7 +14,7 @@ from RL.reference_values import *
 from RL.helper_funcs import *
 
 # Display (square screen)
-screen_height = 800
+screen_height = 700
 right_column_width = 300
 screen_width = screen_height + right_column_width
 margins = 48
@@ -48,7 +48,7 @@ obs_collision_penalty_weightage = -400
 too_close_to_obstacle_penalty_weightage = -2
 
 # COLREGs related reward/penalty weightages
-obs_head_on_weightage = 1
+obs_head_on_weightage = 2
 obs_overtaking_weightage = 1
 obs_crossing_starboard_penalty_weightage = 0  # turn to starboard
 obs_crossing_port_penalty_weightage = -1  # do not turn left
