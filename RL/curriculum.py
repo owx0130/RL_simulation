@@ -8,7 +8,8 @@ from stable_baselines3.common.callbacks import BaseCallback
 DIFFICULTY_0 = 0.15
 DIFFICULTY_1 = 0.25
 DIFFICULTY_2 = 0.4
-DIFFICULTY_3 = 0.7
+DIFFICULTY_3 = 0.6
+DIFFICULTY_4 = 0.8
 
 class CurriculumCallback(BaseCallback):
     def __init__(self, total_timesteps, verbose=1):
@@ -42,7 +43,9 @@ class CurriculumCallback(BaseCallback):
             difficulty = 2
         elif progress < DIFFICULTY_3:
             difficulty = 3
-        else:
+        elif progress < DIFFICULTY_4:
             difficulty = 4
+        else:
+            difficulty = 5
         
         return difficulty

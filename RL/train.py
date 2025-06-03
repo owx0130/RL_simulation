@@ -31,7 +31,7 @@ from params import *
 from model_funcs import *
 from curriculum import CurriculumCallback
 
-TRAINING_TIMESTEPS = 600_000
+TRAINING_TIMESTEPS = 700_000
 
 MODEL_NAME = "simple_nav"
 
