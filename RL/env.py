@@ -401,8 +401,8 @@ class MyEnv(gym.Env):
                (not 90 <= relative_bearing <= 270):
                 # Head on situation
                 obs_type = 2
-            elif (0 <= abs(heading_diff) <= 30) and \
-                 (relative_bearing >= 292.5 or relative_bearing <= 67.5) and \
+            elif (0 <= abs(heading_diff) <= 20) and \
+                 (relative_bearing >= 247.5 or relative_bearing <= 112.5) and \
                  (self.agent.velocity > obs.velocity):
                 # Overtaking situation
                 obs_type = 4
@@ -680,13 +680,11 @@ class MyEnv(gym.Env):
         vec_to_obs = obstacle.xy - self.agent.xy
         bearing_to_obs = (90 - np.degrees(np.arctan2(vec_to_obs[1], vec_to_obs[0]))) % 360
         relative_bearing = (bearing_to_obs - self.agent.heading) % 360
+        
         heading_diff = (self.agent.heading - self.prev_agent.heading + 180) % 360 - 180
         
-        if 22.5 <= relative_bearing <= 157.5:
-            if heading_diff > 0:
-                return self.reward_weights_dict["obs_crossing_weightage"]
-            else:
-                return -self.reward_weights_dict["obs_crossing_weightage"]
+        if heading_diff > 1:
+            return self.reward_weights_dict["obs_crossing_weightage"]
         else:
             return 0
 
@@ -694,7 +692,7 @@ class MyEnv(gym.Env):
         vec_to_obs = obstacle.xy - self.agent.xy
         bearing_to_obs = (90 - np.degrees(np.arctan2(vec_to_obs[1], vec_to_obs[0]))) % 360
         relative_bearing = (bearing_to_obs - self.agent.heading) % 360
-        if 22.5 <= relative_bearing <= 157.5:
+        if 22.5 <= relative_bearing <= 112.5:
             if np.linalg.norm(vec_to_obs) < 2 * obstacle.safety_radius:
                 return self.reward_weights_dict["obs_overtaking_weightage"]
             else:
@@ -704,6 +702,12 @@ class MyEnv(gym.Env):
     
     def get_reward(self, in_ops_env, goal_reached):
         "Calculates the total reward"
+        
+        # Update reward weights dynamically based on difficulty
+        if self.difficulty > 0:
+            # For collision avoidance, let agent focus less on reaching the goal
+            self.reward_weights_dict["distance_change_weightage"] *= 0.5
+            self.reward_weights_dict["goal_reward_weightage"] *= 0.5
         
         self.prev_rewards_log = copy.deepcopy(self.rewards_log)
 
