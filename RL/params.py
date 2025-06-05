@@ -14,7 +14,7 @@ from RL.reference_values import *
 from RL.helper_funcs import *
 
 # Display (square screen)
-screen_height = 700
+screen_height = 800
 right_column_width = 300
 screen_width = screen_height + right_column_width
 margins = 48
