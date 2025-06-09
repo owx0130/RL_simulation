@@ -25,8 +25,9 @@ colours_dict = {
     0: ["Unclassified", WHITE],
     1: ["Heading Away", LIME],
     2: ["Head-on", RED],
-    3: ["Crossing", CYAN],
-    4: ["Overtaking", ORANGE],
+    3: ["Overtaking", ORANGE],
+    4: ["Crossing STBD", CYAN],
+    5: ["Crossing PORT", CYAN]
 }
 
 # Environment
@@ -40,17 +41,17 @@ max_obstacles = 10
 simulation_status = True
 
 # Reward/penalty weightages
-distance_change_weightage = 2
-time_penalty_weightage = -0.15
+distance_change_weightage = 1
+time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -400
-goal_reward_weightage = 400
+goal_reward_weightage = 250
 obs_collision_penalty_weightage = -400
 too_close_to_obstacle_penalty_weightage = -2
 
 # COLREGs related reward/penalty weightages
-obs_head_on_weightage = 1
-obs_crossing_weightage = 1
-obs_overtaking_weightage = 1
+obs_head_on_weightage = 200
+obs_overtaking_weightage = 200
+obs_crossing_weightage = 200
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
