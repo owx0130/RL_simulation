@@ -125,6 +125,7 @@ class Obstacle():
         start_velocity: float,  # m/s
         safety_radius: int,  # m
         isActive: bool,  # [0,1]
+        initial_heading_diff
     ):
         self.xy = start_pos  # agent xy position in metres
         self.velocity = start_velocity  # agent velocity in m/s
@@ -133,6 +134,8 @@ class Obstacle():
         self.isActive = isActive
         self.type = 0
         self.isRewardGiven = False
+        self.sin_initial_heading_diff = np.sin(np.radians(initial_heading_diff))
+        self.cos_initial_heading_diff = np.cos(np.radians(initial_heading_diff))
 
     def update(self, time_step: float):
 
@@ -304,9 +307,9 @@ class MyEnv(gym.Env):
         # Obstacle observation space
         # dist_to_agent, sin(angle_diff_to_agent), cos(angle_diff_to_agent), velocity, sin(heading_diff), cos(heading_diff)
         observation_space_dict["obstacles"] = spaces.Box(
-            low=np.tile(np.array([0, -1, -1, 0, -1, -1, 0, 0, 0, 0, 0, 0]), (self.max_obstacles, 1)),
-            high=np.tile(np.array([1] * 12), (self.max_obstacles, 1)),
-            shape=(self.max_obstacles, 12),
+            low=np.tile(np.array([0, -1, -1, 0, -1, -1, -1, -1]), (self.max_obstacles, 1)),
+            high=np.tile(np.array([1] * 8), (self.max_obstacles, 1)),
+            shape=(self.max_obstacles, 8),
             dtype=np.float32
         )
         
@@ -475,7 +478,7 @@ class MyEnv(gym.Env):
 
     def generate_static_obstacle(self):
 
-        obs_heading = obs_velocity = 0
+        obs_heading = obs_velocity = initial_heading_diff = 0
 
         # Randomly select obstacle safety radius (select smaller vessels for earlier difficulties)
         # if self.difficulty == 1:
@@ -522,7 +525,8 @@ class MyEnv(gym.Env):
             start_heading=obs_heading,
             start_velocity=obs_velocity,
             safety_radius=obs_safety_radius,
-            isActive=isActive
+            isActive=isActive,
+            initial_heading_diff=initial_heading_diff
         )
 
     def generate_moving_obstacle(self):
@@ -540,9 +544,9 @@ class MyEnv(gym.Env):
             if self.difficulty == 2:
                 obs_type = 2
             elif self.difficulty == 3:
-                obs_type = 3
-            elif self.difficulty == 4:
                 obs_type = 4
+            elif self.difficulty == 4:
+                obs_type = 3
             else:
                 obs_type = np.random.choice([1, 2, 3, 4])
 
@@ -572,7 +576,7 @@ class MyEnv(gym.Env):
             elif obs_type == 3:  # overtaking
                 rel_heading_to_collision_pt = np.random.uniform(170, 190)
             elif obs_type == 4:  # crossing
-                if self.difficulty == 4:
+                if self.difficulty == 3:
                     # Specifically generate obstacles on starboard side for better training
                     rel_heading_to_collision_pt = np.random.uniform(30, 100)
                 else:
@@ -617,6 +621,9 @@ class MyEnv(gym.Env):
             
             if isInBounds and not isTooClose and not isNearGoal:
                 break
+
+        # Initial heading diff between agent and obstacle for better obstacle classification
+        heading_diff = (obs_heading - self.agent.heading + 180) % 360 - 180
         
         # Generate inactive obstacle if impossible to generate within the environment constraints
         if not isInBounds or isTooClose or isNearGoal:
@@ -629,7 +636,8 @@ class MyEnv(gym.Env):
             start_heading=obs_heading,
             start_velocity=obs_velocity,
             safety_radius=obs_safety_radius,
-            isActive=isActive
+            isActive=isActive,
+            initial_heading_diff=heading_diff
         )
 
     def generate_obstacle(self):
@@ -673,14 +681,16 @@ class MyEnv(gym.Env):
             np.cos(angle_diff_rad),
             obstacle.velocity / self.max_obs_velocity_ms,
             np.sin(heading_diff_rad),
-            np.cos(heading_diff_rad)
+            np.cos(heading_diff_rad),
+            obstacle.sin_initial_heading_diff,
+            obstacle.cos_initial_heading_diff
         ]).astype(np.float32)
 
-        # Get one hot encoding for obstacle type
-        one_hot = np.zeros(6, dtype=np.float32)
-        one_hot[obstacle.type] = 1.0
+        # # Get one hot encoding for obstacle type
+        # one_hot = np.zeros(6, dtype=np.float32)
+        # one_hot[obstacle.type] = 1.0
         
-        return np.concatenate([obs_vector, one_hot])
+        return obs_vector
 
     def log_rewards(self, reward, reward_name):
         """Logs each reward/penalty to the rewards_log dict for display in logs table and
@@ -714,7 +724,7 @@ class MyEnv(gym.Env):
             return self.reward_weights_dict["obs_head_on_weightage"]
         elif 90 <= relative_bearing_from_obs <= 180 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
-            return -self.reward_weights_dict["obs_head_on_weightage"]
+            return -self.reward_weights_dict["obs_head_on_weightage"] * 2
         else:
             return 0
     
@@ -727,7 +737,7 @@ class MyEnv(gym.Env):
         
         if 0 <= relative_bearing_from_obs <= 90 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
-            return -self.reward_weights_dict["obs_crossing_weightage"]
+            return -self.reward_weights_dict["obs_crossing_weightage"] * 2
         elif 90 <= relative_bearing_from_obs <= 180 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return self.reward_weights_dict["obs_crossing_weightage"]
@@ -754,7 +764,7 @@ class MyEnv(gym.Env):
         
         if relative_bearing_from_obs <= 112.5 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
-            return -self.reward_weights_dict["obs_overtaking_weightage"]
+            return -self.reward_weights_dict["obs_overtaking_weightage"] * 2
         elif 247.5 <= relative_bearing_from_obs and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return self.reward_weights_dict["obs_overtaking_weightage"]
@@ -867,6 +877,9 @@ class MyEnv(gym.Env):
         elif 2 <= self.difficulty <= 4:
             self.max_spawned_obs = 1
             self.obstacle_motion_type = 1
+        elif self.difficulty == 5:
+            self.max_spawned_obs = 3
+            self.obstacle_motion_type = 1
         
         # Update reward weights dynamically based on difficulty
         # if self.difficulty in [2, 3, 4]:
@@ -908,7 +921,8 @@ class MyEnv(gym.Env):
                     start_heading=0,
                     start_velocity=0,
                     safety_radius=0,
-                    isActive=0
+                    isActive=0,
+                    initial_heading_diff=0
                 )
             
             self.obs_list.append(obstacle)
