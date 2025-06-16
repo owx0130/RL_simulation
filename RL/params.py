@@ -52,7 +52,7 @@ too_close_to_obstacle_penalty_weightage = -2
 obs_head_on_weightage = 200
 obs_overtaking_weightage = 200
 obs_crossing_weightage = 200
-obs_turning_correctly_weightage = 1
+obs_turning_correctly_weightage = 1.2
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
