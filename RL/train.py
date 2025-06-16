@@ -31,7 +31,7 @@ from params import *
 from model_funcs import *
 from curriculum import CurriculumCallback
 
-TRAINING_TIMESTEPS = 720_000
+TRAINING_TIMESTEPS = 800_000
 
 MODEL_NAME = "simple_nav"
 
@@ -43,7 +43,7 @@ if os.path.exists(MODEL_DIR):
     shutil.rmtree(MODEL_DIR)
 
 # Wrap the environment in a vectorized environment
-NUM_ENVS = 6
+NUM_ENVS = 8
 vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 model = SAC("MultiInputPolicy", env=vec_env)
 

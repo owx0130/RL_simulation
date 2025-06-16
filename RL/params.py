@@ -44,7 +44,7 @@ simulation_status = True
 distance_change_weightage = 1
 time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -400
-goal_reward_weightage = 250
+goal_reward_weightage = 300
 obs_collision_penalty_weightage = -400
 too_close_to_obstacle_penalty_weightage = -2
 
@@ -52,7 +52,7 @@ too_close_to_obstacle_penalty_weightage = -2
 obs_head_on_weightage = 200
 obs_overtaking_weightage = 200
 obs_crossing_weightage = 200
-obs_turning_correctly_weightage = 1.2
+obs_turning_correctly_weightage = 1
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
