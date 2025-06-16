@@ -415,11 +415,11 @@ class MyEnv(gym.Env):
 
         # Classify obstacle type accordingly
         if closest_dist < 2 * obs.safety_radius:
-            if (160 <= abs(heading_diff) <= 180) and \
+            if (155 <= abs(heading_diff) <= 180) and \
                (not 90 <= relative_bearing <= 270):
                 # Head on situation
                 obs_type = 2
-            elif (0 <= abs(heading_diff) <= 20) and \
+            elif (0 <= abs(heading_diff) <= 25) and \
                  (relative_bearing >= 247.5 or relative_bearing <= 112.5) and \
                  (self.agent.velocity > obs.velocity):
                 # Overtaking situation
@@ -544,9 +544,9 @@ class MyEnv(gym.Env):
             if self.difficulty == 2:
                 obs_type = 2
             elif self.difficulty == 3:
-                obs_type = 4
-            elif self.difficulty == 4:
                 obs_type = 3
+            elif self.difficulty == 4:
+                obs_type = 4
             else:
                 obs_type = np.random.choice([1, 2, 3, 4])
 
@@ -576,7 +576,7 @@ class MyEnv(gym.Env):
             elif obs_type == 3:  # overtaking
                 rel_heading_to_collision_pt = np.random.uniform(170, 190)
             elif obs_type == 4:  # crossing
-                if self.difficulty == 3:
+                if self.difficulty == 4:
                     # Specifically generate obstacles on starboard side for better training
                     rel_heading_to_collision_pt = np.random.uniform(30, 100)
                 else:
@@ -679,7 +679,7 @@ class MyEnv(gym.Env):
             agent_dist_to_obstacle / self.max_dist_in_boundary,
             np.sin(angle_diff_rad),
             np.cos(angle_diff_rad),
-            obstacle.velocity / self.max_obs_velocity_ms,
+            obstacle.velocity / self.max_velocity_ms,
             np.sin(heading_diff_rad),
             np.cos(heading_diff_rad),
             obstacle.sin_initial_heading_diff,
@@ -741,6 +741,8 @@ class MyEnv(gym.Env):
         elif 90 <= relative_bearing_from_obs <= 180 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return self.reward_weights_dict["obs_crossing_weightage"]
+        elif heading_diff > 0.3 and not obstacle.isRewardGiven:
+            return self.reward_weights_dict["obs_turning_correctly_weightage"]
         else:
             return 0
 
@@ -762,12 +764,16 @@ class MyEnv(gym.Env):
         bearing_to_obs = (90 - np.degrees(np.arctan2(vec_to_obs[1], vec_to_obs[0]))) % 360
         relative_bearing_from_obs = (bearing_to_obs - obstacle.heading) % 360
         
+        heading_diff = (self.agent.heading - self.prev_agent.heading + 180) % 360 - 180
+
         if relative_bearing_from_obs <= 112.5 and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return -self.reward_weights_dict["obs_overtaking_weightage"] * 2
         elif 247.5 <= relative_bearing_from_obs and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return self.reward_weights_dict["obs_overtaking_weightage"]
+        elif heading_diff < -0.3 and not obstacle.isRewardGiven:
+            return self.reward_weights_dict["obs_turning_correctly_weightage"]
         else:
             return 0
 

@@ -14,7 +14,7 @@ from RL.reference_values import *
 from RL.helper_funcs import *
 
 # Display (square screen)
-screen_height = 700
+screen_height = 800
 right_column_width = 300
 screen_width = screen_height + right_column_width
 margins = 48
@@ -52,6 +52,7 @@ too_close_to_obstacle_penalty_weightage = -2
 obs_head_on_weightage = 200
 obs_overtaking_weightage = 200
 obs_crossing_weightage = 200
+obs_turning_correctly_weightage = 1.2
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
@@ -62,6 +63,7 @@ rewards_weights_dict = {
     "too_close_to_obstacle_penalty_weightage": too_close_to_obstacle_penalty_weightage,
     "obs_head_on_weightage": obs_head_on_weightage,
     "obs_crossing_weightage": obs_crossing_weightage,
+    "obs_turning_correctly_weightage": obs_turning_correctly_weightage,
     "obs_overtaking_weightage": obs_overtaking_weightage
 }
 
