@@ -46,7 +46,7 @@ time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -500
 goal_reward_weightage = 300
 obs_collision_penalty_weightage = -500
-too_close_to_obstacle_penalty_weightage = -5
+too_close_to_obstacle_penalty_weightage = -1
 
 # COLREGs related reward/penalty weightages
 obs_head_on_weightage = 200
