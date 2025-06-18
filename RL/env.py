@@ -750,6 +750,9 @@ class MyEnv(gym.Env):
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
         
+        test = np.cos(np.radians(self.agent_angle_to_goal)) * 0.2
+        self.log_rewards(test, "angle")
+
         # Time penalty
         time_penalty = self.reward_weights_dict["time_penalty_weightage"]
         self.log_rewards(time_penalty, "time_penalty")
@@ -807,6 +810,7 @@ class MyEnv(gym.Env):
             obs_head_on_reward +
             obs_crossing_reward +
             obs_overtaking_reward +
+            test +
             goal_reward
         )
         self.log_rewards(total_reward, "total_reward")
@@ -853,7 +857,7 @@ class MyEnv(gym.Env):
         self.agent = Agent(
             self.agent_start_pos_xy,
             self.initial_heading_degs,
-            np.random.uniform(0, self.cruising_speed_ms),
+            np.random.uniform(0.5 * self.cruising_speed_ms, self.cruising_speed_ms),
             self.max_velocity_ms
         )
         
