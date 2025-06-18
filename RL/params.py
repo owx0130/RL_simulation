@@ -43,10 +43,10 @@ simulation_status = True
 # Reward/penalty weightages
 distance_change_weightage = 1
 time_penalty_weightage = -0.1
-exceed_ops_env_penalty_weightage = -500
+exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 300
 obs_collision_penalty_weightage = -500
-too_close_to_obstacle_penalty_weightage = -1
+too_close_to_obstacle_penalty_weightage = -3
 
 # COLREGs related reward/penalty weightages
 obs_head_on_weightage = 200
