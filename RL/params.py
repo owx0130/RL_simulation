@@ -22,12 +22,12 @@ grid_number = 8
 display_rate = 30  # Hz
 entity_size = 8  # of agent, obstacles, goal (metres)
 colours_dict = {
-    0: ["Unclassified", WHITE],
-    1: ["Heading Away", LIME],
-    2: ["Head-on", RED],
-    3: ["Overtaking", ORANGE],
+    1: ["Static", WHITE],
+    2: ["Heading Away", LIME],
+    3: ["Head-on", RED],
     4: ["Crossing STBD", CYAN],
-    5: ["Crossing PORT", CYAN]
+    5: ["Crossing PORT", CYAN],
+    6: ["Overtaking", ORANGE]
 }
 
 # Environment
@@ -37,22 +37,21 @@ heading = 90.0  # 90 degrees = east
 decision_rate = 30  # Hz
 ops_bubble_multiplier = 0.75
 proximity_to_goal = 5  # metres
-max_obstacles = 10
+max_obstacles = 3
 simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 1
 time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -1000
-goal_reward_weightage = 300
-obs_collision_penalty_weightage = -500
+goal_reward_weightage = 500
+obs_collision_penalty_weightage = -1000
 too_close_to_obstacle_penalty_weightage = -3
 
 # COLREGs related reward/penalty weightages
 obs_head_on_weightage = 200
 obs_overtaking_weightage = 200
 obs_crossing_weightage = 200
-obs_turning_correctly_weightage = 1.2
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
@@ -63,7 +62,6 @@ rewards_weights_dict = {
     "too_close_to_obstacle_penalty_weightage": too_close_to_obstacle_penalty_weightage,
     "obs_head_on_weightage": obs_head_on_weightage,
     "obs_crossing_weightage": obs_crossing_weightage,
-    "obs_turning_correctly_weightage": obs_turning_correctly_weightage,
     "obs_overtaking_weightage": obs_overtaking_weightage
 }
 

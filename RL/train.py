@@ -43,14 +43,17 @@ if os.path.exists(MODEL_DIR):
     shutil.rmtree(MODEL_DIR)
 
 # Wrap the environment in a vectorized environment
-NUM_ENVS = 8
+NUM_ENVS = 4
 vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
-model = SAC("MultiInputPolicy", env=vec_env)
+
+base_env = create_env()
+model = SAC("MultiInputPolicy",
+            env=vec_env,
+            device="cpu")
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 
 start_time = time.time()  # Start the timer
-
 model.learn(
     total_timesteps=TRAINING_TIMESTEPS,
     progress_bar=True,
