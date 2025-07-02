@@ -118,19 +118,19 @@ class Obstacle():
         self.isRewardGiven = False
         self.type = type
         self.isErratic = isErratic
-        self.timesteps_since_last_change = 100  # only used for erratically moving obstacles
+        self.timesteps_since_last_change = 50  # only used for erratically moving obstacles
 
     def update(self, time_step: float):
         if self.isErratic:
             if self.timesteps_since_last_change == 0:
                 # Randomly set yaw rate for erratic obstacle
-                self.yaw_rate = np.random.uniform(-20, 20)
+                self.yaw_rate = random_sample([-30, -15], [15, 30])
                 
                 # Randomly select velocity within certain boundaries from current velocity
-                self.velocity = np.random.uniform(0.9 * self.velocity, 1.1 * self.velocity)
+                self.velocity = np.random.uniform(0.8 * self.velocity, 1.3 * self.velocity)
                 
                 # Reset counter
-                self.timesteps_since_last_change = 100
+                self.timesteps_since_last_change = 50
             else:
                 self.timesteps_since_last_change -= 1
         
@@ -641,7 +641,7 @@ class MyEnv(gym.Env):
 
         # Determine obstacle velocity based on motion type
         if (self.obstacle_motion_type == 0) or \
-           (self.obstacle_motion_type == 2 and np.random.choice([0, 1]) == 0):
+           (self.obstacle_motion_type == 2 and np.random.choice([0, 1], p=[0.2, 0.8]) == 0):
             obstacle = self.generate_static_obstacle()
         else:
             obstacle = self.generate_moving_obstacle()
@@ -745,7 +745,7 @@ class MyEnv(gym.Env):
         bearing_to_obs = (90 - np.degrees(np.arctan2(vec_to_obs[1], vec_to_obs[0]))) % 360
         relative_bearing_from_obs = (bearing_to_obs - obstacle.heading) % 360
         
-        if (relative_bearing_from_obs <= 112.5 or relative_bearing_from_obs >= 247.5) and not obstacle.isRewardGiven:
+        if (relative_bearing_from_obs <= 67.5 or relative_bearing_from_obs >= 292.5) and not obstacle.isRewardGiven:
             obstacle.isRewardGiven = True
             return self.reward_weights_dict["obs_overtaking_weightage"]
         else:
@@ -875,6 +875,13 @@ class MyEnv(gym.Env):
             else:
                 self.max_spawned_obs = np.random.choice([2, 3])
             self.obstacle_motion_type = 2
+        
+        # Update reward parameters
+        if self.difficulty == 6:
+            # Concept of COLREGs does not exist when obstacles are moving eratically, just make sure agent can navigate safely to goal
+            self.reward_weights_dict["obs_head_on_weightage"] = 0
+            self.reward_weights_dict["obs_crossing_weightage"] = 0
+            self.reward_weights_dict["obs_overtaking_weightage"] = 0
         
         # Initialise ops environment variables
         self.ops_COG, self.ops_bubble_radius, self.ops_bottom_left, self.ops_top_right, self.max_ops_dist = self.get_operational_environment()

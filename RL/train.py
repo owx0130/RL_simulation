@@ -49,7 +49,8 @@ vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 base_env = create_env()
 model = SAC("MultiInputPolicy",
             env=vec_env,
-            device="cpu")
+            device="cpu",
+            buffer_size=TRAINING_TIMESTEPS)
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 

@@ -44,7 +44,7 @@ simulation_status = True
 distance_change_weightage = 1
 time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -1000
-goal_reward_weightage = 500
+goal_reward_weightage = 400
 obs_collision_penalty_weightage = -1000
 too_close_to_obstacle_penalty_weightage = -3
 

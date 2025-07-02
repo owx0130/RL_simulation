@@ -18,8 +18,8 @@ from params import *
 from model_funcs import *
 from collections import defaultdict
 
-def evaluate_agent(model, eval_env, n_episodes=1200):
-    difficulty_levels = 6
+def evaluate_agent(model, eval_env, n_episodes=1400):
+    difficulty_levels = 7
     episodes_per_difficulty = n_episodes // difficulty_levels
 
     success_count = 0
