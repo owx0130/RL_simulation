@@ -107,11 +107,14 @@ class Obstacle():
         start_heading,  # degrees °
         start_velocity,  # m/s
         safety_radius,  # m
+        max_velocity,
         type=0,
         isErratic=False
     ):
         self.xy = start_pos  # agent xy position in metres
         self.velocity = start_velocity  # agent velocity in m/s
+        self.max_velocity = max_velocity
+        self.acceleration = 0
         self.heading = start_heading  # agent heading in degrees
         self.yaw_rate = 0  # only used for erratically moving obstacles
         self.safety_radius = safety_radius
@@ -126,20 +129,22 @@ class Obstacle():
                 # Randomly set yaw rate for erratic obstacle
                 self.yaw_rate = random_sample([-30, -15], [15, 30])
                 
-                # Randomly select velocity within certain boundaries from current velocity
-                self.velocity = np.random.uniform(0.8 * self.velocity, 1.3 * self.velocity)
+                # Randomly select acceleration within certain boundaries
+                self.acceleration = np.random.uniform(-0.2, 0.5)
                 
                 # Reset counter
                 self.timesteps_since_last_change = 50
             else:
                 self.timesteps_since_last_change -= 1
         
+        heading_rad = np.radians(self.heading)
+        self.xy += np.array([np.sin(heading_rad), np.cos(heading_rad)]) * self.velocity * time_step  # Update position
+        
+        self.velocity += self.acceleration * time_step
+        self.velocity = np.clip(self.velocity, 0, self.max_velocity)
         self.heading += self.yaw_rate * time_step
         self.heading %= 360
         
-        heading_rad = np.radians(self.heading)
-        self.xy += np.array([np.sin(heading_rad), np.cos(heading_rad)]) * self.velocity * time_step  # Update position
-
 class MyEnv(gym.Env):
     def __init__(
         self,
@@ -407,7 +412,7 @@ class MyEnv(gym.Env):
 
         # While training overtaking/head-on/crossing, ensure that obstacle is not reclassified
         # for effective training
-        if 2 <= self.difficulty <= 5 and obs.type != 0:
+        if 2 <= self.difficulty <= 3 and obs.type != 0:
             return obs.type
 
         # Calculate distance at CPA
@@ -520,6 +525,7 @@ class MyEnv(gym.Env):
             start_heading=self.agent.heading,
             start_velocity=0,
             safety_radius=obs_safety_radius,
+            max_velocity=self.max_obs_velocity_ms,
             type=obs_type
         )
 
@@ -538,12 +544,8 @@ class MyEnv(gym.Env):
         max_attempts = 1000
         for _ in range(max_attempts):
             if self.difficulty == 2:
-                obs_type = 3
-            elif self.difficulty == 3:
-                obs_type = 4
-            elif self.difficulty == 4:
-                obs_type = 6
-            elif self.difficulty == 5:
+                obs_type = np.random.choice([3, 4, 6])
+            elif 3 <= self.difficulty <= 4:
                 obs_type = np.random.choice([3, 4, 5, 6])
             else:
                 obs_type = np.random.choice([2, 3, 4, 5, 6])
@@ -634,6 +636,7 @@ class MyEnv(gym.Env):
             start_heading=obs_heading,
             start_velocity=obs_velocity,
             safety_radius=obs_safety_radius,
+            max_velocity=self.max_obs_velocity_ms,
             type=final_obs_type
         )
 
@@ -641,7 +644,7 @@ class MyEnv(gym.Env):
 
         # Determine obstacle velocity based on motion type
         if (self.obstacle_motion_type == 0) or \
-           (self.obstacle_motion_type == 2 and np.random.choice([0, 1], p=[0.2, 0.8]) == 0):
+           (self.obstacle_motion_type == 2 and np.random.choice([0, 1], p=[0.1, 0.9]) == 0):
             obstacle = self.generate_static_obstacle()
         else:
             obstacle = self.generate_moving_obstacle()
@@ -857,27 +860,29 @@ class MyEnv(gym.Env):
             else:
                 break
         self.agent_start_pos_xy_rel = self.agent_start_pos_xy - self.goal_pos_xy
-
-        # Adjust environment complexity based on difficulty of environment
-        if self.difficulty == 1:
-            # Spawn lesser obstacles for smaller environments so it is not too difficult
+        
+        # Spawn lesser obstacles for smaller environments so it is not too difficult
+        # Spawn more obstacles for large environments to make it more challenging
+        if self.difficulty != 0:
             if np.linalg.norm(self.agent_start_pos_xy_rel) < 200:
                 self.max_spawned_obs = 2
-            else:
+            elif np.linalg.norm(self.agent_start_pos_xy_rel) < 300:
                 self.max_spawned_obs = np.random.choice([2, 3])
-        elif 2 <= self.difficulty <= 4:
+            else:
+                self.max_spawned_obs = np.random.choice([3, 4])
+        
+        # Adjust environment complexity based on difficulty of environment
+        if self.difficulty == 2:
+            # Spawn one moving obstacle to focus on COLREGs training
             self.max_spawned_obs = 1
             self.obstacle_motion_type = 1
-        elif 5 <= self.difficulty <= 6:
-            # Spawn lesser obstacles for smaller environments so it is not too difficult
-            if np.linalg.norm(self.agent_start_pos_xy_rel) < 200:
-                self.max_spawned_obs = 2
-            else:
-                self.max_spawned_obs = np.random.choice([2, 3])
+        elif self.difficulty == 3:
+            # Spawn moving obstacles with a small chance at spawning static obstacles
             self.obstacle_motion_type = 2
-        
-        # Update reward parameters
-        if self.difficulty == 6:
+        elif self.difficulty == 4:
+            # Spawn moving obstacles with a small chance at spawning static obstacles
+            self.obstacle_motion_type = 2
+            
             # Concept of COLREGs does not exist when obstacles are moving eratically, just make sure agent can navigate safely to goal
             self.reward_weights_dict["obs_head_on_weightage"] = 0
             self.reward_weights_dict["obs_crossing_weightage"] = 0
@@ -911,15 +916,16 @@ class MyEnv(gym.Env):
             # Only activate the first "max_spawned_obs" obstacles
             if i < self.max_spawned_obs:
                 obstacle = self.generate_obstacle()
-                if self.difficulty == 6:
-                    # Turn on erratic movement for difficulty 6
+                if self.difficulty == 4:
+                    # Turn on erratic movement for difficulty 4
                     obstacle.isErratic = True
             else:
                 obstacle = Obstacle(
                     start_pos=copy.deepcopy(self.agent_start_pos_xy),
                     start_heading=self.agent.heading,
                     start_velocity=0,
-                    safety_radius=0
+                    safety_radius=0,
+                    max_velocity=self.max_obs_velocity_ms
                 )
 
             self.obs_list.append(obstacle)

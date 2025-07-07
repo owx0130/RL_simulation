@@ -8,11 +8,9 @@ from stable_baselines3.common.callbacks import BaseCallback
 # Difficulty 4 - crossing situation, agent must avoid while abiding COLREGS
 # Difficulty 5 - 2-3 moving obstacles
 DIFFICULTY_0 = 0.1
-DIFFICULTY_1 = 0.2
-DIFFICULTY_2 = 0.3
-DIFFICULTY_3 = 0.4
-DIFFICULTY_4 = 0.5
-DIFFICULTY_5 = 0.75
+DIFFICULTY_1 = 0.3
+DIFFICULTY_2 = 0.6
+DIFFICULTY_3 = 1.0
 
 class CurriculumCallback(BaseCallback):
     def __init__(self, total_timesteps, verbose=1):
@@ -46,11 +44,7 @@ class CurriculumCallback(BaseCallback):
             difficulty = 2
         elif progress < DIFFICULTY_3:
             difficulty = 3
-        elif progress < DIFFICULTY_4:
-            difficulty = 4
-        elif progress < DIFFICULTY_5:
-            difficulty = 5
         else:
-            difficulty = 6
+            difficulty = 4
         
         return difficulty

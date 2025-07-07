@@ -37,7 +37,7 @@ heading = 90.0  # 90 degrees = east
 decision_rate = 30  # Hz
 ops_bubble_multiplier = 0.75
 proximity_to_goal = 5  # metres
-max_obstacles = 3
+max_obstacles = 4
 simulation_status = True
 
 # Reward/penalty weightages

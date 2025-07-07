@@ -18,8 +18,8 @@ from params import *
 from model_funcs import *
 from collections import defaultdict
 
-def evaluate_agent(model, eval_env, n_episodes=1400):
-    difficulty_levels = 7
+def evaluate_agent(model, eval_env, n_episodes=1200):
+    difficulty_levels = 4
     episodes_per_difficulty = n_episodes // difficulty_levels
 
     success_count = 0
@@ -88,7 +88,7 @@ def evaluate_agent(model, eval_env, n_episodes=1400):
 
     return total_results
 
-def save_results_to_txt(results, filepath="RL_training/results/eval_results.txt"):
+def save_results_to_txt(results, filepath="RL_training/results_multi_task/eval_results.txt"):
     
     timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     with open(filepath, "w", encoding="utf-8") as f:
