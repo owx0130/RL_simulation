@@ -1,19 +1,16 @@
-"""
-params.py
-
-This module defines the parameters for the maritime simulation: environment, agent, display, and penalties.
-"""
-
 # Add file directory to system path and change working directory (to maintain imports)
 import sys, os
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 os.chdir(str(Path(__file__).parent.parent.resolve()))
 
-from RL.reference_values import *
+from RL.colour_reference import *
 from RL.helper_funcs import *
 
 # Display (square screen)
+velocity_arrow_scale = 3  # size of velocity converted to pixels
+max_arrow_length_pixels = 250
+min_arrow_length_pixels = max_arrow_length_pixels * 0.1
 screen_height = 800
 right_column_width = 300
 screen_width = screen_height + right_column_width
@@ -42,6 +39,7 @@ simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 1
+velocity_weightage = 0.2
 time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 400
@@ -55,6 +53,7 @@ obs_crossing_weightage = 200
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
+    "velocity_weightage": velocity_weightage,
     "time_penalty_weightage": time_penalty_weightage,
     "exceed_ops_env_penalty_weightage": exceed_ops_env_penalty_weightage,
     "goal_reward_weightage": goal_reward_weightage,

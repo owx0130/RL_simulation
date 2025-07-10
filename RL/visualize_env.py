@@ -1,22 +1,3 @@
-"""
-visualize_env.py
-
-This module is responsible for visualizing the maritime simulation.
-It sets up the environment, runs the simulation loop, and renders the environment.
-
-The script initializes the custom environment `MyEnv`. It then runs the simulation loop, rendering the environment at each step.
-
-Usage:
-    Run this script to visualize the maritime simulation environment. Press Esc key to exit the simulation. If uninterrupted simulation will
-    run until self.end_time is reached or agent has reached the goal. 
-    Use the W, A & D keys to control the agent to test the simulation environment.
-
-    Run this script in src/main/
-
-Example:
-    $ python visualize_env.py
-"""
-
 import pygame
 
 from params import *

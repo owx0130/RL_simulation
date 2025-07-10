@@ -1,37 +1,14 @@
-"""
-train.py
-
-This script trains a Proximal Policy Optimization (PPO) agent using a custom environment defined in `env.py`.
-
-The PPO agent is defined as a neural network with three fully connected layers. The training loop runs for a specified number of epochs, collecting data from the environment, computing losses, and updating the agent's parameters. The trained model is saved at the end of the training process.
-
-Classes:
-    PPOAgent: Defines the neural network architecture for the PPO agent.
-
-Functions:
-    forward(state): Performs a forward pass through the network.
-
-Usage:
-    Run this script to train the PPO agent. 
-
-Example:
-    $ python train.py
-
-Tensorboard:
-   $ tensorboard --logdir=<logdir>
-"""
-
 import time
 import shutil
 
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import SAC
 from stable_baselines3.common.env_util import make_vec_env
 
 from params import *
 from model_funcs import *
 from curriculum import CurriculumCallback
 
-TRAINING_TIMESTEPS = 1_600_000
+TRAINING_TIMESTEPS = 1_000_000
 
 MODEL_NAME = "simple_nav"
 
@@ -49,8 +26,7 @@ vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 base_env = create_env()
 model = SAC("MultiInputPolicy",
             env=vec_env,
-            device="cpu",
-            buffer_size=TRAINING_TIMESTEPS)
+            device="cpu")
 
 print(f"\nRun command to view Tensorboard logs: tensorboard --logdir={LOG_DIR}\n")
 

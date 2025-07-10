@@ -1,26 +1,13 @@
-"""
-visualize_model.py
-
-This script loads a trained Proximal Policy Optimization (PPO) agent and uses it to interact with and render a custom environment defined in `env.py`.
-
-The script creates an instance of the PPO agent, loads the saved model parameters, and runs the agent in the environment, rendering each step.
-
-Usage:
-    Run this script to visualize the performance of the trained PPO agent.
-
-Example:
-    $ python visualize_model.py
-"""
-
 from datetime import datetime
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import SAC
 from params import *
 from model_funcs import *
 from collections import defaultdict
 
 def evaluate_agent(model, eval_env, n_episodes=1200):
-    difficulty_levels = 4
-    episodes_per_difficulty = n_episodes // difficulty_levels
+    # Evaluate on goalfinding, static obstacles, 3 COLREGs situations, and multiple obstacles
+    evaluated_difficulty_levels = [0, 1, 2, 3, 4, 6]
+    episodes_per_difficulty = n_episodes // len(evaluated_difficulty_levels)
 
     success_count = 0
     out_of_env_count = 0
@@ -38,9 +25,9 @@ def evaluate_agent(model, eval_env, n_episodes=1200):
     })
 
     for i in range(n_episodes):
-        current_difficulty = i // episodes_per_difficulty
+        current_difficulty = evaluated_difficulty_levels[i // episodes_per_difficulty]
         eval_env.set_difficulty(current_difficulty)
-
+        
         obs, _ = eval_env.reset()
         terminated = False
         truncated = False
@@ -116,7 +103,10 @@ def save_results_to_txt(results, filepath="RL_training/results_multi_task/eval_r
 
     print(f"Saved evaluation results to {os.path.abspath(filepath)}")
 
+# Load and evaluate agent
 model = SAC.load("RL_training/sac_model.zip")
 env = create_env()
 results = evaluate_agent(model, env)
+
+# Save the evaluation results to a text file
 save_results_to_txt(results)

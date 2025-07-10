@@ -1,9 +1,9 @@
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import SAC
 from params import *
 from model_funcs import *
 
 # Create the environment
-env = create_env(difficulty=3, record=True)
+env = create_env(difficulty=6, record=True)
 
 # Load the trained model
 model = SAC.load("RL_training/sac_model.zip")

@@ -1,7 +1,3 @@
-"""
-This module contains various helper functions used throughout the maritime simulation.
-"""
-
 import math as mt
 import numpy as np
 

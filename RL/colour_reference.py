@@ -1,0 +1,12 @@
+# Colour RGB reference values
+RED = (240, 0, 0)
+BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
+WHITE = (255, 255, 255)
+DARK_BLUE = (0, 34, 61)
+YELLOW = (255, 255, 0)
+LIGHT_GREY = (150, 150, 150)
+BLACK = (0, 0, 0)
+CYAN = (0, 200, 200)
+ORANGE = (255, 165, 0)
+LIME = (50, 205, 50)

@@ -14,6 +14,9 @@ def create_env(record=False, difficulty=0):
         safety_radius_dict,
         rewards_weights_dict,
 
+        velocity_arrow_scale,
+        max_arrow_length_pixels,
+        min_arrow_length_pixels,
         screen_height,
         screen_width,
         margins,
