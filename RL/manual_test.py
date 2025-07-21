@@ -5,7 +5,7 @@ from model_funcs import *
 MODEL_PATH = "RL_training/sac_model_multi.zip"
 
 # Create the environment
-env = create_env(difficulty=6, record=True)
+env = create_env(difficulty=2, record=True)
 
 # Load the trained model
 model = SAC.load(MODEL_PATH)

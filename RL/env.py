@@ -790,8 +790,8 @@ class MyEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         # Initialise navigation variables
-        self.goal_pos_xy = self.generate_random_coords(0, 50)
-        self.agent_start_pos_xy = self.generate_random_coords(0, 50)
+        self.goal_pos_xy = self.generate_random_coords(0, 125)
+        self.agent_start_pos_xy = self.generate_random_coords(0, 125)
         self.initial_heading_degs = np.random.uniform(0, 360)
         self.acc_ms2 = 0
         self.yaw_rate_degs = 0
