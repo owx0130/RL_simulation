@@ -39,7 +39,6 @@ simulation_status = True
 
 # Reward/penalty weightages
 distance_change_weightage = 1
-velocity_weightage = 0.2
 time_penalty_weightage = -0.1
 exceed_ops_env_penalty_weightage = -1000
 goal_reward_weightage = 400
@@ -47,13 +46,12 @@ obs_collision_penalty_weightage = -1000
 too_close_to_obstacle_penalty_weightage = -3
 
 # COLREGs related reward/penalty weightages
-obs_head_on_weightage = 200
-obs_overtaking_weightage = 200
-obs_crossing_weightage = 200
+obs_head_on_weightage = 300
+obs_overtaking_weightage = 300
+obs_crossing_weightage = 300
 
 rewards_weights_dict = {
     "distance_change_weightage": distance_change_weightage,
-    "velocity_weightage": velocity_weightage,
     "time_penalty_weightage": time_penalty_weightage,
     "exceed_ops_env_penalty_weightage": exceed_ops_env_penalty_weightage,
     "goal_reward_weightage": goal_reward_weightage,

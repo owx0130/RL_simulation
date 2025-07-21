@@ -271,8 +271,8 @@ class MyEnv(gym.Env):
     def get_signed_angle_diff(self, pt1, heading, pt2):
         """Returns signed angle difference from pt1 to pt2.
         
-           CW => -ve
-           ACW => +ve
+           CW => +ve
+           ACW => -ve
         """
         if np.allclose(pt1, pt2):
             return 0
@@ -626,7 +626,7 @@ class MyEnv(gym.Env):
         angle_diff_rad = np.radians(obstacle_agent_angle_diff)
         heading_diff = (obstacle.heading - self.agent.heading + 180) % 360 - 180
         heading_diff_rad = np.radians(heading_diff)
-
+        
         # Observation vector for obstacle
         obs_vector = np.array([
             agent_dist_to_obstacle / self.max_dist_in_boundary,
@@ -768,7 +768,6 @@ class MyEnv(gym.Env):
         self.log_rewards(obs_overtaking_reward, "obs_overtaking_reward")
 
         # Reward for reaching goal
-        # Reduce goal reward for difficulty 3 to focus on collision avoidance
         goal_reward = self.reward_weights_dict["goal_reward_weightage"] if goal_reached else 0
         self.log_rewards(goal_reward, "goal_reward")
 
@@ -790,10 +789,9 @@ class MyEnv(gym.Env):
         return total_reward
 
     def reset(self, seed=None, options=None):
-
         # Initialise navigation variables
-        self.goal_pos_xy = self.generate_random_coords(0, 200)
-        self.agent_start_pos_xy = self.generate_random_coords(0, 200)
+        self.goal_pos_xy = self.generate_random_coords(0, 50)
+        self.agent_start_pos_xy = self.generate_random_coords(0, 50)
         self.initial_heading_degs = np.random.uniform(0, 360)
         self.acc_ms2 = 0
         self.yaw_rate_degs = 0
@@ -883,7 +881,6 @@ class MyEnv(gym.Env):
         return self.state, {}
     
     def step(self, action):
-        
         normalized_acc, normalized_yaw_rate = action
         self.acc_ms2 = normalized_acc * self.max_acc_ms2
         self.yaw_rate_degs = normalized_yaw_rate * self.max_yaw_rate_degs

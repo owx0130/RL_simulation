@@ -2,11 +2,13 @@ from stable_baselines3 import SAC
 from params import *
 from model_funcs import *
 
+MODEL_PATH = "RL_training/sac_model_multi.zip"
+
 # Create the environment
 env = create_env(difficulty=6, record=True)
 
 # Load the trained model
-model = SAC.load("RL_training/sac_model.zip")
+model = SAC.load(MODEL_PATH)
 
 # Reset the environment and get the initial observation
 obs, _ = env.reset()

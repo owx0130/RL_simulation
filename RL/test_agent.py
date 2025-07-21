@@ -4,7 +4,10 @@ from params import *
 from model_funcs import *
 from collections import defaultdict
 
-def evaluate_agent(model, eval_env, n_episodes=1200):
+RESULTS_SAVE_PATH = "RL_training/results_all_together/eval_results.txt"
+MODEL_PATH = "RL_training/sac_model_together.zip"
+
+def evaluate_agent(model, eval_env, n_episodes=6000):
     # Evaluate on goalfinding, static obstacles, 3 COLREGs situations, and multiple obstacles
     evaluated_difficulty_levels = [0, 1, 2, 3, 4, 6]
     episodes_per_difficulty = n_episodes // len(evaluated_difficulty_levels)
@@ -75,10 +78,13 @@ def evaluate_agent(model, eval_env, n_episodes=1200):
 
     return total_results
 
-def save_results_to_txt(results, filepath="RL_training/results_multi_task/eval_results.txt"):
+def save_results_to_txt(results, filepath=RESULTS_SAVE_PATH):
+    
+    output_path = Path(filepath)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-    with open(filepath, "w", encoding="utf-8") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         # --------------------------------------------------
         # Header
         # --------------------------------------------------
@@ -104,7 +110,7 @@ def save_results_to_txt(results, filepath="RL_training/results_multi_task/eval_r
     print(f"Saved evaluation results to {os.path.abspath(filepath)}")
 
 # Load and evaluate agent
-model = SAC.load("RL_training/sac_model.zip")
+model = SAC.load(MODEL_PATH)
 env = create_env()
 results = evaluate_agent(model, env)
 
