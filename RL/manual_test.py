@@ -2,10 +2,10 @@ from stable_baselines3 import SAC
 from params import *
 from model_funcs import *
 
-MODEL_PATH = "RL_training/sac_model_multi.zip"
+MODEL_PATH = "RL_training/sac_model_multi_2.zip"
 
 # Create the environment
-env = create_env(difficulty=2, record=True)
+env = create_env(difficulty=6, record=True)
 
 # Load the trained model
 model = SAC.load(MODEL_PATH)

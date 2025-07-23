@@ -4,8 +4,8 @@ from params import *
 from model_funcs import *
 from collections import defaultdict
 
-RESULTS_SAVE_PATH = "RL_training/results_all_together/eval_results.txt"
-MODEL_PATH = "RL_training/sac_model_together.zip"
+RESULTS_SAVE_PATH = "RL_training/results_multi_task/eval_results.txt"
+MODEL_PATH = "RL_training/sac_model.zip"
 
 def evaluate_agent(model, eval_env, n_episodes=6000):
     # Evaluate on goalfinding, static obstacles, 3 COLREGs situations, and multiple obstacles

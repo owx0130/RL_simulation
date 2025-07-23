@@ -9,12 +9,12 @@ from stable_baselines3.common.callbacks import BaseCallback
 # Difficulty 5 - obstacle can be any of the 3 COLREGs situations
 # Difficulty 6 - multiple moving/static obstacles
 # Each constant here indicates at which proportion of the total timesteps their represented difficulty will end
-DIFFICULTY_0 = 0
-DIFFICULTY_1 = 0
-DIFFICULTY_2 = 0
-DIFFICULTY_3 = 0
-DIFFICULTY_4 = 0
-DIFFICULTY_5 = 0
+DIFFICULTY_0 = 0.1
+DIFFICULTY_1 = 0.3
+DIFFICULTY_2 = 0.3
+DIFFICULTY_3 = 0.3
+DIFFICULTY_4 = 0.3
+DIFFICULTY_5 = 0.6
 
 class CurriculumCallback(BaseCallback):
     def __init__(self, total_timesteps, verbose=1):

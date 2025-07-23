@@ -1324,14 +1324,14 @@ class MyEnv(gym.Env):
             width=self.linewidth_pixels,
         )
 
-        # Detection radius circle
-        pygame.draw.circle(
-            self.screen,
-            YELLOW, 
-            pixel_xy,
-            self.metre_to_pixel(self.detection_radius),
-            width=self.linewidth_pixels,
-        )
+        # # Detection radius circle
+        # pygame.draw.circle(
+        #     self.screen,
+        #     YELLOW, 
+        #     pixel_xy,
+        #     self.metre_to_pixel(self.detection_radius),
+        #     width=self.linewidth_pixels,
+        # )
 
         # Draw a beeline behind the agent to visualise its motion
         for i, pos in enumerate(list(self.agent_pixel_pos_deque)[::-1]):
