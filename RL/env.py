@@ -16,7 +16,6 @@ from RL.colour_reference import *
 
 from collections import deque
 
-# Object to represent the agent
 class Agent():
     def __init__(
         self,
@@ -43,7 +42,6 @@ class Agent():
         
         return self.xy, self.velocity, self.heading 
 
-# Object to represent the physical obstacles
 class Obstacle():
     def __init__(
         self,
@@ -60,13 +58,15 @@ class Obstacle():
         self.max_velocity = max_velocity
         self.acceleration = 0
         self.heading = start_heading  # agent heading in degrees
-        self.yaw_rate = 0  # only used for erratically moving obstacles
+        self.yaw_rate = 0
         self.safety_radius = safety_radius
         self.isRewardGiven = False
         self.type = type
         self.isErratic = isErratic
         self.timesteps_since_last_change = 50  # only used for erratically moving obstacles
 
+    # Update obstacle state
+    # Erratic obstacles are not used in the model's training/testing for now, so isErratic should always be False
     def update(self, time_step: float):
         if self.isErratic:
             if self.timesteps_since_last_change == 0:
@@ -229,6 +229,8 @@ class MyEnv(gym.Env):
     def set_difficulty(self, level):
         self.difficulty = level
 
+    # Generate a random (x, y) coordinate based on the lower and upper bounds provided
+    # Selects coordinates that fall within the lower and upper bounds (negative coordinates included)
     def generate_random_coords(self, lower_bound, upper_bound):
         values = np.concatenate((
             np.arange(-upper_bound, -lower_bound + 1, dtype=np.float32),
@@ -283,10 +285,10 @@ class MyEnv(gym.Env):
     def get_operational_environment(self):
         "Returns midpoint, ops_bubble_radius of operational environment"
 
-        # midpoint coordinates
+        # Midpoint coordinates
         midpoint = (self.agent_start_pos_xy + self.goal_pos_xy) / 2
         
-        # operational radius for training where the agent cannot exceed
+        # Determine the environment boundary for training where the agent cannot exceed
         ops_bubble_radius = np.linalg.norm(self.agent_start_pos_xy_rel) * self.ops_bubble_multiplier
         
         # Edges of the map
@@ -312,11 +314,7 @@ class MyEnv(gym.Env):
 
     def closest_distance_with_agent(self, obstacle: Obstacle):
         """Returns the closest projected distance between the 
-        agent and an obstacle from the current time until end of episode
-
-        obstacle = Obstacle()"""
-
-        rel_pos = np.abs(self.agent.xy - obstacle.xy)
+        agent and an obstacle from the current time until end of episode"""
 
         agent_heading_rad = np.radians(self.agent.heading)
         obs_heading_rad = np.radians(obstacle.heading)
@@ -329,11 +327,6 @@ class MyEnv(gym.Env):
             np.sin(obs_heading_rad),
             np.cos(obs_heading_rad)
         ])
-        
-        rel_pos = np.abs(self.agent.xy - obstacle.xy)
-        rel_vel = agent_dir - obs_dir
-        
-        dcpa = np.linalg.norm(rel_pos / np.linalg.norm(rel_vel))
         
         def distance(t):
             dist = (self.agent.xy + agent_dir * t) - (obstacle.xy + obs_dir * t)
@@ -367,7 +360,7 @@ class MyEnv(gym.Env):
         # Calculate distance at CPA
         closest_dist, t = self.closest_distance_with_agent(obs)
 
-        # Classify obstacle type accordingly
+        # Classify obstacle type accordingly if DCPA is close enough
         if closest_dist < 2 * obs.safety_radius:
             if (150 <= abs(heading_diff) <= 180) and \
                (not 90 <= relative_bearing <= 270):
@@ -394,23 +387,7 @@ class MyEnv(gym.Env):
         
         return obs_type
 
-    def get_list_of_collided_obstacles(self):
-        collided_obs = []
-        for i in range(len(self.obs_list)):
-            for j in range(i + 1, len(self.obs_list)):
-                obs1 = self.obs_list[i]
-                obs2 = self.obs_list[j]
-
-                # Only calculate collision if both obstacles are active
-                if obs1.type != 0 and obs2.type != 0:
-                    larger_radius = max(obs1.safety_radius, obs2.safety_radius)
-                    distance = np.linalg.norm(obs1.xy - obs2.xy)
-                    if distance < 0.2 * larger_radius:
-                        collided_obs.append(i)
-                        collided_obs.append(j)
-
-        return collided_obs
-
+    # Check if a spawned obstacle is too close to other existing obstacles
     def check_if_obstacles_too_close(self, obs_xy, obs_safety_radius):
         isTooClose = False
         for existing_obs in self.obs_list:
@@ -423,6 +400,7 @@ class MyEnv(gym.Env):
         
         return isTooClose
 
+    # Check if spawned obstacle is too near to the goal (below the threshold)
     def check_if_too_close_to_goal(self, obs_xy):
         threshold = 50
         if np.linalg.norm(obs_xy - self.goal_pos_xy) < threshold:
@@ -511,21 +489,6 @@ class MyEnv(gym.Env):
             else:
                 t = np.random.uniform(0.2, 0.8)
             collision_xy = (1 - t) * self.agent.xy + t * self.goal_pos_xy
-            
-            # time_to_rch_goal = self.agent_dist_to_goal / self.agent.velocity
-            # time_upper_bound = time_to_rch_goal * 0.7
-            # time_lower_bound = time_to_rch_goal * 0.2
-            
-            # if time_upper_bound < 3.0:  # Handle case where agent is too close to goal
-            #     time_to_collision = 3.0
-            # else:
-            #     time_to_collision = np.random.uniform(time_lower_bound, time_upper_bound)
-            
-            # goal_heading = (90 - np.degrees(np.arctan2(self.goal_pos_xy[1] - self.agent.xy[1], self.goal_pos_xy[0] - self.agent.xy[0]))) % 360
-            # collision_xy = self.agent.xy + self.agent.velocity * time_to_collision * np.array([
-            #     np.sin(np.radians(goal_heading)),
-            #     np.cos(np.radians(goal_heading))
-            # ])
 
             if obs_type == 2:  # heading away
                 rel_heading_to_collision_pt = random_sample((10, 170), (190, 350))
@@ -601,6 +564,7 @@ class MyEnv(gym.Env):
         
         return obstacle
 
+    # Returns the updated observation of the agent in the environment
     def get_agent_state(self):
 
         # Compute distance to goal and angle diff between agent and goal
@@ -618,6 +582,7 @@ class MyEnv(gym.Env):
             dist_to_boundary / self.ops_bubble_radius
         ]).astype(np.float32)
 
+    # Returns the updated observation of an obstacle in the environment
     def get_obstacle_state(self, obstacle):
         
         # Compute angle diff between agent and obstacle
@@ -642,7 +607,7 @@ class MyEnv(gym.Env):
 
     def log_rewards(self, reward, reward_name):
         """Logs each reward/penalty to the rewards_log dict for display in logs table and
-        analysis purposes. (Not an essential function)"""
+        analysis purposes."""
         
         if reward_name == "total_reward": 
             if reward_name not in self.rewards_log: 
@@ -713,9 +678,6 @@ class MyEnv(gym.Env):
         change_in_distance_to_goal = prev_distance - self.agent_dist_to_goal
         distance_change_reward = change_in_distance_to_goal * self.reward_weights_dict["distance_change_weightage"]
         self.log_rewards(distance_change_reward, "distance_change_reward")
-        
-        # test = np.cos(np.radians(self.agent_angle_to_goal)) * 0.2
-        # self.log_rewards(test, "angle")
 
         # Velocity reward for agents that start with a slow speed
         if self.agent.velocity < self.cruising_speed_ms:
@@ -911,9 +873,8 @@ class MyEnv(gym.Env):
                     obstacle.type = self.classify_obstacle(obstacle)
                 
                 # Check if obstacle is outside ops bubble (only relevant for moving obstacles)
+                # If obstacle is beyond the ops bubble, deactivate it
                 if not self.check_in_operational_environment(obstacle.xy):
-                    # obstacle = self.generate_obstacle()
-                    # self.obs_list[i] = obstacle
                     obstacle.type = 0
                     self.state["obstacle_type"][i] = [1, 0, 0, 0, 0, 0, 0]
                 
@@ -1140,6 +1101,8 @@ class MyEnv(gym.Env):
     #     else:
     #         raise TypeError('power must be an integer greater than 1')
     #     return reward
+
+    # ALL UI RELATED FUNCTIONS CAN BE FOUND BELOW
 
     def xy_to_pixel(self, xy):
         "Converts xy to pixel coordinates"

@@ -2,6 +2,7 @@ from stable_baselines3 import PPO
 from RL.params import *
 from RL.env import MyEnv
 
+# Helper function to create the environment
 def create_env(record=False, difficulty=0):
     return MyEnv(
         agent_start_pos_longlat,
@@ -35,6 +36,7 @@ def create_env(record=False, difficulty=0):
         difficulty
     )
 
+# Old function to evaluate model (unused)
 def custom_evaluate_model(
     eval_env: MyEnv,
     model: PPO,

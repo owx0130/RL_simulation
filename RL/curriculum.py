@@ -21,6 +21,7 @@ class CurriculumCallback(BaseCallback):
         super().__init__(verbose)
         self.total_timesteps = total_timesteps
 
+    # This function is called after every step the agent takes through the environment
     def _on_step(self):
         progress = self.num_timesteps / self.total_timesteps
         new_difficulty = self._calculate_difficulty(progress)

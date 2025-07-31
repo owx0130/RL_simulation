@@ -109,7 +109,7 @@ def save_results_to_txt(results, filepath=RESULTS_SAVE_PATH):
 
     print(f"Saved evaluation results to {os.path.abspath(filepath)}")
 
-# Load and evaluate agent
+# Load and evaluate model
 model = SAC.load(MODEL_PATH)
 env = create_env()
 results = evaluate_agent(model, env)

@@ -7,6 +7,12 @@ def knotstoms(knots):
 def mstoknots(ms):
     return ms / 0.514444
 
+def random_sample(interval1, interval2):
+    "Returns a random sample from one of the two intervals, each of the form (start_number, end_number)"
+    intervals = [interval1, interval2]
+    chosen_interval = intervals[np.random.choice(len(intervals))]
+    return np.random.uniform(chosen_interval[0], chosen_interval[1])
+
 # works for coordinates not near to the poles
 def longlat_to_xy(longlat):
     "Converts (long, lat) to (x,y) (metres)"
@@ -71,9 +77,3 @@ def heading_to_goal(agent_longlat, goal_longlat):
     # Convert to navigational heading
     compass_heading = math_angle_to_compass(math_angle)
     return compass_heading
-
-def random_sample(interval1, interval2):
-    "Returns a random sample from one of the two intervals, each of the form (start_number, end_number)"
-    intervals = [interval1, interval2]
-    chosen_interval = intervals[np.random.choice(len(intervals))]
-    return np.random.uniform(chosen_interval[0], chosen_interval[1])

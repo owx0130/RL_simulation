@@ -15,12 +15,14 @@ MODEL_PATH = "RL_training/sac_model"
 # Wrap the environment in a vectorized environment
 vec_env = make_vec_env(create_env, n_envs=NUM_ENVS)
 
+# Create model (indicate hyperparameters here)
 model = SAC("MultiInputPolicy",
             env=vec_env,
             device="cpu")
 
 start_time = time.time()  # Start the timer
 
+# Train and save model at desired filepath
 model.learn(
     total_timesteps=TRAINING_TIMESTEPS,
     progress_bar=True,
